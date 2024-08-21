@@ -9,6 +9,11 @@ connectDB();
 
 app.use(express.json());
 
+// Example root route
+app.get('/', (req, res) => {
+    res.send('Hello, world!');
+});
+
 app.use('/api/coupons', require('./routes/couponRoutes'));
 app.use('/api/stores', require('./routes/storeRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
