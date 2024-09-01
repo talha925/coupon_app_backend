@@ -5,14 +5,13 @@ exports.getStores = async (req, res) => {
     try {
         const stores = await Store.find().populate({
             path: 'coupons',
-            select: '-store' // Exclude the `store` field from the populated coupons
+            select: 'code description discount expirationDate affiliateLink' // Include only necessary fields
         });
-        res.status(200).json(stores);
+        res.status(200).json({ status: 'success', data: stores });
     } catch (error) {
-        res.status(500).json({ error: 'Server Error' });
+        res.status(500).json({ status: 'error', error: 'Server Error' });
     }
 };
-
 
 // Create a new store
 exports.createStore = async (req, res) => {
@@ -20,9 +19,9 @@ exports.createStore = async (req, res) => {
     try {
         const newStore = new Store({ name, website, description, coupons });
         await newStore.save();
-        res.status(201).json(newStore);
+        res.status(201).json({ status: 'success', data: newStore });
     } catch (error) {
-        res.status(500).json({ error: 'Server Error' });
+        res.status(500).json({ status: 'error', error: 'Server Error' });
     }
 };
 
@@ -31,12 +30,12 @@ exports.getStoreById = async (req, res) => {
     try {
         const store = await Store.findById(req.params.id).populate({
             path: 'coupons',
-            select: '-store' // Exclude the `store` field from the populated coupons
+            select: 'code description discount expirationDate affiliateLink' // Include only necessary fields
         });
-        if (!store) return res.status(404).json({ error: 'Store not found' });
-        res.status(200).json(store);
+        if (!store) return res.status(404).json({ status: 'error', error: 'Store not found' });
+        res.status(200).json({ status: 'success', data: store });
     } catch (error) {
-        res.status(500).json({ error: 'Server Error' });
+        res.status(500).json({ status: 'error', error: 'Server Error' });
     }
 };
 
@@ -44,10 +43,10 @@ exports.getStoreById = async (req, res) => {
 exports.updateStore = async (req, res) => {
     try {
         const updatedStore = await Store.findByIdAndUpdate(req.params.id, req.body, { new: true }).populate('coupons');
-        if (!updatedStore) return res.status(404).json({ error: 'Store not found' });
-        res.status(200).json(updatedStore);
+        if (!updatedStore) return res.status(404).json({ status: 'error', error: 'Store not found' });
+        res.status(200).json({ status: 'success', data: updatedStore });
     } catch (error) {
-        res.status(500).json({ error: 'Server Error' });
+        res.status(500).json({ status: 'error', error: 'Server Error' });
     }
 };
 
@@ -55,9 +54,9 @@ exports.updateStore = async (req, res) => {
 exports.deleteStore = async (req, res) => {
     try {
         const deletedStore = await Store.findByIdAndDelete(req.params.id);
-        if (!deletedStore) return res.status(404).json({ error: 'Store not found' });
-        res.status(200).json({ message: 'Store deleted successfully' });
+        if (!deletedStore) return res.status(404).json({ status: 'error', error: 'Store not found' });
+        res.status(200).json({ status: 'success', message: 'Store deleted successfully' });
     } catch (error) {
-        res.status(500).json({ error: 'Server Error' });
+        res.status(500).json({ status: 'error', error: 'Server Error' });
     }
 };

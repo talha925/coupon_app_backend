@@ -6,17 +6,13 @@ exports.getCoupons = async (req, res) => {
     try {
         const coupons = await Coupon.find().populate({
             path: 'store',
-            populate: {
-                path: 'coupons',
-                select: '-store' // Exclude the `store` field from the coupons within the store
-            }
+            select: 'name' // Include only necessary fields
         });
-        res.status(200).json(coupons);
+        res.status(200).json({ status: 'success', data: coupons });
     } catch (error) {
-        res.status(500).json({ error: 'Server Error' });
+        res.status(500).json({ status: 'error', error: 'Server Error' });
     }
 };
-
 
 // Create a new coupon
 exports.createCoupon = async (req, res) => {
@@ -28,9 +24,9 @@ exports.createCoupon = async (req, res) => {
         // Add the new coupon to the store's coupons array
         await Store.findByIdAndUpdate(store, { $push: { coupons: newCoupon._id } });
 
-        res.status(201).json(newCoupon);
+        res.status(201).json({ status: 'success', data: newCoupon });
     } catch (error) {
-        res.status(500).json({ error: 'Server Error' });
+        res.status(500).json({ status: 'error', error: 'Server Error' });
     }
 };
 
@@ -39,15 +35,12 @@ exports.getCouponById = async (req, res) => {
     try {
         const coupon = await Coupon.findById(req.params.id).populate({
             path: 'store',
-            populate: {
-                path: 'coupons',
-                select: '-store' // Exclude the `store` field from the coupons within the store
-            }
+            select: 'name' // Include only necessary fields
         });
-        if (!coupon) return res.status(404).json({ error: 'Coupon not found' });
-        res.status(200).json(coupon);
+        if (!coupon) return res.status(404).json({ status: 'error', error: 'Coupon not found' });
+        res.status(200).json({ status: 'success', data: coupon });
     } catch (error) {
-        res.status(500).json({ error: 'Server Error' });
+        res.status(500).json({ status: 'error', error: 'Server Error' });
     }
 };
 
@@ -55,10 +48,10 @@ exports.getCouponById = async (req, res) => {
 exports.updateCoupon = async (req, res) => {
     try {
         const updatedCoupon = await Coupon.findByIdAndUpdate(req.params.id, req.body, { new: true }).populate('store');
-        if (!updatedCoupon) return res.status(404).json({ error: 'Coupon not found' });
-        res.status(200).json(updatedCoupon);
+        if (!updatedCoupon) return res.status(404).json({ status: 'error', error: 'Coupon not found' });
+        res.status(200).json({ status: 'success', data: updatedCoupon });
     } catch (error) {
-        res.status(500).json({ error: 'Server Error' });
+        res.status(500).json({ status: 'error', error: 'Server Error' });
     }
 };
 
@@ -66,13 +59,13 @@ exports.updateCoupon = async (req, res) => {
 exports.deleteCoupon = async (req, res) => {
     try {
         const deletedCoupon = await Coupon.findByIdAndDelete(req.params.id);
-        if (!deletedCoupon) return res.status(404).json({ error: 'Coupon not found' });
+        if (!deletedCoupon) return res.status(404).json({ status: 'error', error: 'Coupon not found' });
 
         // Remove the deleted coupon from the store's coupons array
         await Store.findByIdAndUpdate(deletedCoupon.store, { $pull: { coupons: deletedCoupon._id } });
 
-        res.status(200).json({ message: 'Coupon deleted successfully' });
+        res.status(200).json({ status: 'success', message: 'Coupon deleted successfully' });
     } catch (error) {
-        res.status(500).json({ error: 'Server Error' });
+        res.status(500).json({ status: 'error', error: 'Server Error' });
     }
 };
