@@ -11,7 +11,7 @@ const router = express.Router();
 router.get('/', getStores);
 router.post('/', createStore);
 router.get('/:id', getStoreById);
-router.put('/:id', updateStore); // Update route
-router.delete('/:id', deleteStore); // Delete route
+router.put('/:id', updateStore);
+router.delete('/:id', deleteStore);
 
 module.exports = router;

@@ -11,7 +11,7 @@ const router = express.Router();
 router.get('/', getCoupons);
 router.post('/', createCoupon);
 router.get('/:id', getCouponById);
-router.put('/:id', updateCoupon); // Update route
-router.delete('/:id', deleteCoupon); // Delete route
+router.put('/:id', updateCoupon);
+router.delete('/:id', deleteCoupon);
 
 module.exports = router;
