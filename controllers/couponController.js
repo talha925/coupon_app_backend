@@ -1,18 +1,21 @@
 const Coupon = require('../models/couponModel');
 const Store = require('../models/storeModel');
 
+const Coupon = require('../models/couponModel');
+
 // Get all coupons
 exports.getCoupons = async (req, res) => {
-    try {
-        const coupons = await Coupon.find().populate({
-            path: 'store',
-            select: 'name' // Include only necessary fields
-        });
-        res.status(200).json({ status: 'success', data: coupons });
-    } catch (error) {
-        res.status(500).json({ status: 'error', error: 'Server Error' });
-    }
+  try {
+    const coupons = await Coupon.find().populate({
+      path: 'store',
+      select: 'name image' // Only include store's name and image
+    });
+    res.status(200).json({ status: 'success', data: coupons });
+  } catch (error) {
+    res.status(500).json({ status: 'error', error: 'Server Error' });
+  }
 };
+
 
 // Create a new coupon
 exports.createCoupon = async (req, res) => {

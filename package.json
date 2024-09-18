@@ -10,6 +10,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.651.1",
+    "@aws-sdk/middleware-stack": "^3.374.0",
+    "@aws-sdk/s3-request-presigner": "^3.651.1",
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -18,6 +21,8 @@
     "mongodb": "^6.8.0",
     "mongoose": "^8.5.3",
     "mongose": "^0.0.2-security",
+    "multer": "^1.4.5-lts.1",
+    "multer-s3": "^3.0.1",
     "nodemon": "^3.1.4"
   }
 }

@@ -17,7 +17,13 @@ exports.getStores = async (req, res) => {
 exports.createStore = async (req, res) => {
     const { name, website, description, image, coupons } = req.body;
     try {
-        const newStore = new Store({ name, website, description, image, coupons });
+        const newStore = new Store({
+            name,
+            website,
+            description,
+            image, 
+            coupons
+        });
         await newStore.save();
         res.status(201).json({ status: 'success', data: newStore });
     } catch (error) {
@@ -49,7 +55,7 @@ exports.updateStore = async (req, res) => {
     } catch (error) {
         res.status(500).json({ status: 'error', error: 'Server Error' });
     }
-};
+}
 
 // Delete a store
 exports.deleteStore = async (req, res) => {
