@@ -1,7 +1,6 @@
 const Coupon = require('../models/couponModel');
 const Store = require('../models/storeModel');
 
-const Coupon = require('../models/couponModel');
 
 // Get all coupons
 exports.getCoupons = async (req, res) => {
