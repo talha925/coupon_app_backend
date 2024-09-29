@@ -1,3 +1,4 @@
+// app.js
 const express = require('express');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
@@ -19,8 +20,7 @@ app.get('/', (req, res) => {
 // Existing routes
 app.use('/api/stores', require('./routes/storeRoutes'));
 app.use('/api/coupons', require('./routes/couponRoutes'));
-
-// Upload route
+app.use('/api/categories', require('./routes/categoryRoutes'));  // Category routes
 app.use('/api/upload', require('./routes/uploadRoutes')); // Upload route for handling image uploads
 
 // Start the server

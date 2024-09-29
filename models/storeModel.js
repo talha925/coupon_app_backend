@@ -1,3 +1,4 @@
+// models/storeModel.js
 const mongoose = require('mongoose');
 
 const storeSchema = new mongoose.Schema({
@@ -5,6 +6,7 @@ const storeSchema = new mongoose.Schema({
     website: { type: String, required: true },
     description: { type: String },
     image: { type: String }, // Field to store S3 image URL
+    categories: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Category' }], // Reference to Category model
     coupons: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Coupon' }] // Reference to Coupon model
 });
 
