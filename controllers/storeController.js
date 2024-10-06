@@ -15,21 +15,24 @@ exports.getStores = async (req, res) => {
 
 // Create a new store
 exports.createStore = async (req, res) => {
-    const { name, website, description, image, coupons } = req.body;
+    const { name, website, description, image, categories, coupons } = req.body; // ensure 'categories' is included
     try {
         const newStore = new Store({
             name,
             website,
             description,
             image, 
+            categories, // this should save the categories
             coupons
         });
         await newStore.save();
         res.status(201).json({ status: 'success', data: newStore });
     } catch (error) {
+        console.error(error); // Log error for debugging
         res.status(500).json({ status: 'error', error: 'Server Error' });
     }
 };
+
 
 
 // Get a store by ID
