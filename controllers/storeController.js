@@ -15,23 +15,34 @@ exports.getStores = async (req, res) => {
 
 // Create a new store
 exports.createStore = async (req, res) => {
-    const { name, website, description, image, categories, coupons } = req.body; // ensure 'categories' is included
+    const { name, website, description, image, categories, coupons } = req.body;
+
+    // Check if categories is an empty array or not provided
+    if (!categories || categories.length === 0) {
+        return res.status(400).json({
+            status: 'error',
+            error: 'Categories required',
+            message: 'Please provide valid categories for the store.'
+        });
+    }
+
     try {
         const newStore = new Store({
             name,
             website,
             description,
-            image, 
-            categories, // this should save the categories
+            image,
+            categories,
             coupons
         });
         await newStore.save();
         res.status(201).json({ status: 'success', data: newStore });
     } catch (error) {
-        console.error(error); // Log error for debugging
+        console.error('Error creating store:', error);
         res.status(500).json({ status: 'error', error: 'Server Error' });
     }
 };
+
 
 
 
