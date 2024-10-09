@@ -17,7 +17,6 @@ exports.getStores = async (req, res) => {
 exports.createStore = async (req, res) => {
     const { name, website, description, image, categories, coupons } = req.body;
 
-    // Check if categories is an empty array or not provided
     if (!categories || categories.length === 0) {
         return res.status(400).json({
             status: 'error',
@@ -35,13 +34,19 @@ exports.createStore = async (req, res) => {
             categories,
             coupons
         });
+
         await newStore.save();
+
+        // Populate categories and coupons after creating the store
+        await newStore.populate('categories').populate('coupons').execPopulate();
+
         res.status(201).json({ status: 'success', data: newStore });
     } catch (error) {
         console.error('Error creating store:', error);
         res.status(500).json({ status: 'error', error: 'Server Error' });
     }
 };
+
 
 
 
