@@ -2,16 +2,19 @@ const express = require('express');
 const {
     getStores,
     createStore,
-    getStoreById,
+    getStoreBySlug,
+    // getStoreById,b 
     updateStore,
-    deleteStore
+    deleteStore,
 } = require('../controllers/storeController');
+
 const router = express.Router();
 
 router.get('/', getStores);
 router.post('/', createStore);
-router.get('/:id', getStoreById);
-router.put('/:id', updateStore);
-router.delete('/:id', deleteStore);
+router.get('/slug/:slug', getStoreBySlug); // Fetch by slug
+// router.get('/:id', getStoreById);         // Fetch by ID
+router.put('/:id', updateStore);          // Update by ID
+router.delete('/:id', deleteStore);       // Delete by ID
 
 module.exports = router;

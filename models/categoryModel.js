@@ -1,9 +1,7 @@
 const mongoose = require('mongoose');
 
 const categorySchema = new mongoose.Schema({
-    name: { type: String, required: true, unique: true },
-    // Uncomment if you want to keep the createdAt field
-    // createdAt: { type: Date, default: Date.now } 
-});
+    name: { type: String, required: true, unique: true }
+}, { timestamps: true });
 
 module.exports = mongoose.model('Category', categorySchema);

@@ -1,88 +1,108 @@
+const mongoose = require('mongoose');
 const Store = require('../models/storeModel');
 
-// Get all stores
+// Fetch all stores
 exports.getStores = async (req, res) => {
+    const { page = 1, limit = 10, language, category } = req.query;
+
     try {
-        const stores = await Store.find().populate({
-            path: 'coupons',
-            select: 'code description discount expirationDate affiliateLink' // Include only necessary fields
+        const query = {};
+        if (language) query.language = language;
+        if (category) query.categories = category;
+
+        const stores = await Store.find(query)
+            .limit(parseInt(limit, 10))
+            .skip((parseInt(page, 10) - 1) * parseInt(limit, 10));
+
+        const totalStores = await Store.countDocuments(query);
+
+        res.status(200).json({
+            status: 'success',
+            totalPages: Math.ceil(totalStores / limit),
+            currentPage: parseInt(page, 10),
+            data: stores,
         });
-        res.status(200).json({ status: 'success', data: stores });
     } catch (error) {
-        res.status(500).json({ status: 'error', error: 'Server Error' });
+        console.error('Error fetching stores:', error);
+        res.status(500).json({ status: 'error', message: 'Error fetching stores' });
     }
 };
 
 // Create a new store
 exports.createStore = async (req, res) => {
-    const { name, website, description, image, categories, coupons } = req.body;
-
-    if (!categories || categories.length === 0) {
-        return res.status(400).json({
-            status: 'error',
-            error: 'Categories required',
-            message: 'Please provide valid categories for the store.'
-        });
-    }
+    const { name, website, short_description, long_description, image, categories, seo, language } = req.body;
 
     try {
-        const newStore = new Store({
+        const newStore = await Store.create({
             name,
             website,
-            description,
+            short_description,
+            long_description,
             image,
             categories,
-            coupons
+            seo,
+            language,
         });
-
-        await newStore.save();
-
-        // Populate categories and coupons after creating the store
-        await newStore.populate('categories').populate('coupons').execPopulate();
 
         res.status(201).json({ status: 'success', data: newStore });
     } catch (error) {
+        if (error.code === 11000) {
+            return res.status(409).json({ status: 'error', message: 'Duplicate entry for name or slug' });
+        }
         console.error('Error creating store:', error);
-        res.status(500).json({ status: 'error', error: 'Server Error' });
+        res.status(500).json({ status: 'error', message: 'Error creating store' });
     }
 };
 
-
-
-
-
-// Get a store by ID
-exports.getStoreById = async (req, res) => {
+// Fetch a store by slug
+exports.getStoreBySlug = async (req, res) => {
+    const { slug } = req.params;
     try {
-        const store = await Store.findById(req.params.id).populate({
-            path: 'coupons',
-            select: 'code description discount expirationDate affiliateLink' // Include only necessary fields
-        });
-        if (!store) return res.status(404).json({ status: 'error', error: 'Store not found' });
+        const store = await Store.findOne({ slug });
+        if (!store) {
+            return res.status(404).json({ status: 'error', message: 'Store not found' });
+        }
         res.status(200).json({ status: 'success', data: store });
     } catch (error) {
-        res.status(500).json({ status: 'error', error: 'Server Error' });
+        console.error('Error fetching store by slug:', error);
+        res.status(500).json({ status: 'error', message: 'Error fetching store' });
     }
 };
 
-// Update a store
+// Update a store by ID
 exports.updateStore = async (req, res) => {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ status: 'error', message: 'Invalid store ID' });
+    }
+
     try {
-        const updatedStore = await Store.findByIdAndUpdate(req.params.id, req.body, { new: true }).populate('coupons');
-        if (!updatedStore) return res.status(404).json({ status: 'error', error: 'Store not found' });
+        const updatedStore = await Store.findByIdAndUpdate(id, req.body, { new: true });
+        if (!updatedStore) {
+            return res.status(404).json({ status: 'error', message: 'Store not found' });
+        }
         res.status(200).json({ status: 'success', data: updatedStore });
     } catch (error) {
-        res.status(500).json({ status: 'error', error: 'Server Error' });
+        console.error('Error updating store:', error);
+        res.status(500).json({ status: 'error', message: 'Error updating store' });
     }
-}
+};
 
-// Delete a store
+// Delete a store by ID
 exports.deleteStore = async (req, res) => {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ status: 'error', message: 'Invalid store ID' });
+    }
+
     try {
-        const deletedStore = await Store.findByIdAndDelete(req.params.id);
-        if (!deletedStore) return res.status(404).json({ status: 'error', error: 'Store not found' });
+        const deletedStore = await Store.findByIdAndDelete(id);
+        if (!deletedStore) {
+            return res.status(404).json({ status: 'error', message: 'Store not found' });
+        }
         res.status(200).json({ status: 'success', message: 'Store deleted successfully' });
     } catch (error) {
-        res.status(500).json({ status: 'error', error: 'Server Error' });
+        console.error('Error deleting store:', error);
+        res.status(500).json({ status: 'error', message: 'Error deleting store' });
     }
 };
