@@ -38,7 +38,10 @@ exports.createStore = async (req, res) => {
             website,
             short_description,
             long_description,
-            image,
+            image: {
+                url: image.url,
+                alt: image.alt, // Ensure alt text is provided
+            },
             categories,
             seo,
             language,
@@ -53,6 +56,7 @@ exports.createStore = async (req, res) => {
         res.status(500).json({ status: 'error', message: 'Error creating store' });
     }
 };
+
 
 // Fetch a store by slug
 exports.getStoreBySlug = async (req, res) => {

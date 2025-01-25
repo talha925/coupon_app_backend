@@ -7,7 +7,10 @@ const storeSchema = new mongoose.Schema({
     website: { type: String, required: true },
     short_description: { type: String, required: true },
     long_description: { type: String, required: true },
-    image: { type: String, required: true },
+    image: {
+        url: { type: String, required: true }, // Image URL
+        alt: { type: String, required: true }, // Alt text for the image
+    },
     categories: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Category' }],
     seo: {
         meta_title: { type: String, maxlength: 60 },

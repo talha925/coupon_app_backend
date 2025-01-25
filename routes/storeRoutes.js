@@ -3,7 +3,7 @@ const {
     getStores,
     createStore,
     getStoreBySlug,
-    // getStoreById,b 
+    // getStoreById,
     updateStore,
     deleteStore,
 } = require('../controllers/storeController');
