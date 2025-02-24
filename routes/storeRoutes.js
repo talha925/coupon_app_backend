@@ -1,20 +1,14 @@
 const express = require('express');
-const {
-    getStores,
-    createStore,
-    getStoreBySlug,
-    // getStoreById,
-    updateStore,
-    deleteStore,
-} = require('../controllers/storeController');
+const storeController = require('../controllers/storeController'); // Correct Import
 
 const router = express.Router();
 
-router.get('/', getStores);
-router.post('/', createStore);
-router.get('/slug/:slug', getStoreBySlug); // Fetch by slug
-// router.get('/:id', getStoreById);         // Fetch by ID
-router.put('/:id', updateStore);          // Update by ID
-router.delete('/:id', deleteStore);       // Delete by ID
+// Define routes using storeController
+router.get('/search', storeController.searchStores);
+router.get('/', storeController.getStores);
+router.post('/', storeController.createStore);
+router.get('/slug/:slug', storeController.getStoreBySlug);
+router.put('/:id', storeController.updateStore);
+router.delete('/:id', storeController.deleteStore);
 
 module.exports = router;

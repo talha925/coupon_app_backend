@@ -15,7 +15,13 @@ if (!process.env.PORT) {
 const app = express();
 connectDB();      // Connect to MongoDB
 
-app.use(cors());  // Enable CORS
+// app.use(cors());  // Enable CORS
+app.use(cors({
+    origin: '*',  // Allows requests from any domain
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(helmet());  // Adds security headers
 app.use(express.json()); // Enable JSON parsing
 
