@@ -11,7 +11,9 @@ const storeSchema = new mongoose.Schema({
     image: {
         url: { type: String, required: true },
         alt: { type: String, required: true },
-    },
+    },  
+      coupons: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Coupon' }] ,
+
     categories: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Category' }],
     seo: {
         meta_title: { type: String, maxlength: 60 },
