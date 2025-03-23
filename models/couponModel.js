@@ -1,19 +1,15 @@
 const mongoose = require('mongoose');
 
 const couponSchema = new mongoose.Schema({
-    offerName: { type: String, required: true },
-    offerBox: { type: String, required: true },
     offerDetails: { type: String, required: true },
-    code: { type: String, sparse: true }, // ✅ Removed unique constraint
+    code: { type: String, sparse: true },
+    active: { type: Boolean, default: true },
+    isValid: { type: Boolean, default: true },
     store: { type: mongoose.Schema.Types.ObjectId, ref: 'Store', required: true },
-    discount: { type: Number, required: true },
-    expirationDate: { type: Date, default: null },
-    active: { type: Boolean, default: true }, // Active toggle
     featuredForHome: { type: Boolean, default: false },
-    flickerButton: { type: Boolean, default: false },
-    verifiedButton: { type: Boolean, default: false },
-    exclusiveButton: { type: Boolean, default: false }
-});
+    hits: { type: Number, default: 0 },
+    lastAccessed: { type: Date, default: null }
+  }, { timestamps: true });
 
 // ✅ Ensure either "Code" or "Active" is present
 couponSchema.pre('validate', function (next) {

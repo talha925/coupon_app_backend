@@ -3,6 +3,7 @@ const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 const cors = require('cors');
 const helmet = require('helmet');  // Security middleware
+const errorHandler = require('./middlewares/errorHandler'); 
 
 dotenv.config();  // Load environment variables
 
@@ -15,36 +16,27 @@ if (!process.env.PORT) {
 const app = express();
 connectDB();      // Connect to MongoDB
 
-// app.use(cors());  // Enable CORS
+// Middleware
 app.use(cors({
     origin: '*',  // Allows requests from any domain
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
-
 app.use(helmet());  // Adds security headers
 app.use(express.json()); // Enable JSON parsing
 
-// Root route
+// Routes
 app.get('/', (req, res) => {
     res.send('Hello, world!');
 });
 
-// Existing routes
 app.use('/api/stores', require('./routes/storeRoutes'));
 app.use('/api/coupons', require('./routes/couponRoutes'));
 app.use('/api/categories', require('./routes/categoryRoutes'));
 app.use('/api/upload', require('./routes/uploadRoutes'));
 
-// Global error handler
-app.use((err, req, res, next) => {
-    console.error('Global Error:', err.stack);
-    res.status(500).json({
-        status: 'error',
-        message: 'Something went wrong!',
-        error: err.message
-    });
-});
+// Error handling middleware (must be after routes)
+app.use(errorHandler);
 
 // Start the server
 const PORT = process.env.PORT || 5000;
