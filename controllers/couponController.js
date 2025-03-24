@@ -5,47 +5,41 @@ const { createCouponSchema } = require('../validators/couponValidator');
 const CustomError = require('../errors/customError');
 const { formatCoupon } = require('../utils/couponUtils');
 
-// Get all coupons
+// Get all coupons, grouped by store ID (only store ID will be shown)
 exports.getCoupons = async (req, res, next) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
     const limit = Math.max(1, parseInt(req.query.limit) || 10);
     const skip = (page - 1) * limit;
 
-    // Fetch stores and populate their coupons
-    const stores = await Store.find({})
-      .populate({
-        path: 'coupons',
-        match: { isValid: true }, // Only fetch valid coupons
-        options: { skip: skip, limit: limit } // Apply pagination to coupons
-      })
+    // Fetch coupons directly, only with necessary coupon details (exclude store details)
+    const coupons = await Coupon.find({ isValid: true })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .select('-__v') // Remove unnecessary fields like __v
 
-    // Filter out stores with no valid coupons
-    const storesWithCoupons = stores.filter(store => store.coupons.length > 0);
-
+    // Count total valid coupons
     const totalCoupons = await Coupon.countDocuments({ isValid: true });
-    const totalStores = await Store.countDocuments();
 
-    // Format the response
-    const formattedStores = storesWithCoupons.map(store => ({
-      _id: store._id,
-      name: store.name,
-      image: store.image,
-      directUrl: store.directUrl,
-      trackingUrl: store.directUrl, // Use directUrl as trackingUrl
-      coupons: store.coupons.map(coupon => formatCoupon(coupon)) // Use formatCoupon here
+    // Format the response, including only store ID and coupon details
+    const formattedCoupons = coupons.map(coupon => ({
+      _id: coupon._id,
+      offerDetails: coupon.offerDetails,
+      code: coupon.code,
+      active: coupon.active,
+      isValid: coupon.isValid,
+      featuredForHome: coupon.featuredForHome,
+      hits: coupon.hits,
+      lastAccessed: coupon.lastAccessed,
+      storeId: coupon.store  // Only include store ID, no other store details
     }));
 
     res.status(200).json({
       status: 'success',
-      data: formattedStores,
+      data: formattedCoupons,
       metadata: {
-        totalStores: totalStores,
         totalCoupons: totalCoupons,
         currentPage: page,
-        storesPerPage: limit,
         couponsPerPage: limit
       }
     });
@@ -53,6 +47,8 @@ exports.getCoupons = async (req, res, next) => {
     next(error);
   }
 };
+
+
 // Create a new coupon
 exports.createCoupon = async (req, res, next) => {
   try {
@@ -90,8 +86,7 @@ exports.updateCoupon = async (req, res, next) => {
 
     const updateData = { ...req.body };
 
-    const updatedCoupon = await Coupon.findByIdAndUpdate(req.params.id, updateData, { new: true })
-      .populate({ path: 'store', select: 'name image directUrl trackingUrl' });
+    const updatedCoupon = await Coupon.findByIdAndUpdate(req.params.id, updateData, { new: true });
 
     if (!updatedCoupon) throw new CustomError('Coupon not found', 404);
 
@@ -130,7 +125,7 @@ exports.trackCouponUrl = async (req, res, next) => {
       couponId,
       { $inc: { hits: 1 }, $set: { lastAccessed: new Date() } },
       { new: true }
-    ).populate({ path: 'store', select: 'name image directUrl trackingUrl' });
+    );
 
     // Check if coupon exists
     if (!coupon) {
@@ -154,8 +149,7 @@ exports.getCouponById = async (req, res, next) => {
       throw new CustomError('Invalid Coupon ID', 400);
     }
 
-    const coupon = await Coupon.findById(req.params.id)
-      .populate({ path: 'store', select: 'name image directUrl trackingUrl' });
+    const coupon = await Coupon.findById(req.params.id);
 
     if (!coupon) throw new CustomError('Coupon not found', 404);
 
