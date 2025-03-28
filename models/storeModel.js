@@ -32,10 +32,21 @@ const storeSchema = new mongoose.Schema({
         ], 
         default: 'Coupons & Promo Codes' // Set a default
     },
-}, { timestamps: true });
+}, { 
+    timestamps: true,
+    // Add option to make all queries lean by default
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true }
+});
 
 // Create a text index for full-text search
 storeSchema.index({ name: 'text', slug: 'text', short_description: 'text', long_description: 'text' });
+
+// Create compound indexes for common query patterns
+storeSchema.index({ language: 1, isTopStore: 1 });
+storeSchema.index({ language: 1, isEditorsChoice: 1 });
+storeSchema.index({ language: 1, categories: 1 });
+storeSchema.index({ createdAt: -1 }); // For sorting by newest
 
 // Pre-save hook to generate unique slug
 storeSchema.pre('save', async function (next) {
@@ -54,6 +65,29 @@ storeSchema.pre('save', async function (next) {
     }
     next();
 });
+
+// Add any virtual properties here
+storeSchema.virtual('couponCount').get(function() {
+    return this.coupons ? this.coupons.length : 0;
+});
+
+// Static methods
+storeSchema.statics.findTopStores = function(limit = 10) {
+    return this.find({ isTopStore: true })
+        .select('name slug image short_description')
+        .limit(limit)
+        .lean();
+};
+
+// Instance methods
+storeSchema.methods.hasActiveCoupons = async function() {
+    const Coupon = mongoose.model('Coupon');
+    const activeCoupons = await Coupon.countDocuments({ 
+        store: this._id,
+        active: true
+    });
+    return activeCoupons > 0;
+};
 
 const Store = mongoose.model('Store', storeSchema);
 module.exports = Store;

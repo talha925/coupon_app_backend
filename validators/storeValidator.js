@@ -1,32 +1,115 @@
-const { body } = require('express-validator');
+const Joi = require('joi');
 
-exports.validateStore = [
-    body('name')
-        .notEmpty().withMessage('Name is required')
-        .isLength({ min: 2, max: 50 }).withMessage('Name must be between 2 and 50 characters'),
-    
-    body('website')
-        .notEmpty().withMessage('Website is required')
-        .isURL().withMessage('Website must be a valid URL'),
-    
-    body('description')
-        .notEmpty().withMessage('Description is required')
-        .isLength({ max: 500 }).withMessage('Description cannot exceed 500 characters'),
+// Define heading enum values
+const HEADINGS = ['Promo Codes & Coupon', 'Coupons & Promo Codes', 'Voucher & Discount Codes'];
 
-    body('image')
-        .notEmpty().withMessage('Image URL is required')
-        .isURL().withMessage('Image must be a valid URL'),
+// Schema for creating a store
+const createStoreSchema = Joi.object({
+    name: Joi.string().trim().required().messages({
+        'string.empty': 'Store name cannot be empty',
+        'any.required': 'Store name is required'
+    }),
+    directUrl: Joi.string().uri().required().messages({
+        'string.uri': 'Direct URL must be a valid URL',
+        'any.required': 'Direct URL is required'
+    }),
+    trackingUrl: Joi.string().uri().required().messages({
+        'string.uri': 'Tracking URL must be a valid URL',
+        'any.required': 'Tracking URL is required'
+    }),
+    short_description: Joi.string().trim().required().max(160).messages({
+        'string.empty': 'Short description cannot be empty',
+        'string.max': 'Short description cannot exceed {#limit} characters',
+        'any.required': 'Short description is required'
+    }),
+    long_description: Joi.string().trim().required().messages({
+        'string.empty': 'Long description cannot be empty',
+        'any.required': 'Long description is required'
+    }),
+    image: Joi.object({
+        url: Joi.string().uri().required().messages({
+            'string.uri': 'Image URL must be a valid URL',
+            'any.required': 'Image URL is required'
+        }),
+        alt: Joi.string().trim().required().messages({
+            'string.empty': 'Image alt text cannot be empty',
+            'any.required': 'Image alt text is required'
+        })
+    }).required().messages({
+        'any.required': 'Image information is required'
+    }),
+    categories: Joi.array().items(
+        Joi.string().pattern(/^[0-9a-fA-F]{24}$/).messages({
+            'string.pattern.base': 'Category ID must be a valid MongoDB ObjectId'
+        })
+    ),
+    seo: Joi.object({
+        meta_title: Joi.string().trim().max(60).messages({
+            'string.max': 'Meta title cannot exceed {#limit} characters'
+        }),
+        meta_description: Joi.string().trim().max(160).messages({
+            'string.max': 'Meta description cannot exceed {#limit} characters'
+        }),
+        meta_keywords: Joi.string().trim().max(200).messages({
+            'string.max': 'Meta keywords cannot exceed {#limit} characters'
+        })
+    }).required().messages({
+        'any.required': 'SEO information is required'
+    }),
+    language: Joi.string().trim().default('English'),
+    isTopStore: Joi.boolean().default(false),
+    isEditorsChoice: Joi.boolean().default(false),
+    heading: Joi.string().valid(...HEADINGS).default('Coupons & Promo Codes').messages({
+        'any.only': `Heading must be one of: ${HEADINGS.join(', ')}`
+    })
+});
 
-    body('seo.meta_title').optional().isLength({ max: 60 }).withMessage('Meta title cannot exceed 60 characters'),
-    body('seo.meta_description').optional().isLength({ max: 160 }).withMessage('Meta description cannot exceed 160 characters'),
-    body('seo.meta_keywords').optional().isLength({ max: 200 }).withMessage('Meta keywords cannot exceed 200 characters'),
+// Schema for updating a store
+const updateStoreSchema = Joi.object({
+    name: Joi.string().trim().messages({
+        'string.empty': 'Store name cannot be empty'
+    }),
+    directUrl: Joi.string().uri().messages({
+        'string.uri': 'Direct URL must be a valid URL'
+    }),
+    trackingUrl: Joi.string().uri().messages({
+        'string.uri': 'Tracking URL must be a valid URL'
+    }),
+    short_description: Joi.string().trim().max(160).messages({
+        'string.max': 'Short description cannot exceed {#limit} characters'
+    }),
+    long_description: Joi.string().trim(),
+    image: Joi.object({
+        url: Joi.string().uri().messages({
+            'string.uri': 'Image URL must be a valid URL'
+        }),
+        alt: Joi.string().trim()
+    }),
+    categories: Joi.array().items(
+        Joi.string().pattern(/^[0-9a-fA-F]{24}$/).messages({
+            'string.pattern.base': 'Category ID must be a valid MongoDB ObjectId'
+        })
+    ),
+    seo: Joi.object({
+        meta_title: Joi.string().trim().max(60).messages({
+            'string.max': 'Meta title cannot exceed {#limit} characters'
+        }),
+        meta_description: Joi.string().trim().max(160).messages({
+            'string.max': 'Meta description cannot exceed {#limit} characters'
+        }),
+        meta_keywords: Joi.string().trim().max(200).messages({
+            'string.max': 'Meta keywords cannot exceed {#limit} characters'
+        })
+    }),
+    language: Joi.string().trim(),
+    isTopStore: Joi.boolean(),
+    isEditorsChoice: Joi.boolean(),
+    heading: Joi.string().valid(...HEADINGS).messages({
+        'any.only': `Heading must be one of: ${HEADINGS.join(', ')}`
+    })
+});
 
-    body('categories')
-        .isArray({ min: 1 }).withMessage('Categories should be an array with at least one ID')
-        .custom((categories) => categories.every(id => mongoose.isValidObjectId(id))).withMessage('Invalid category ID'),
-
-    body('language').optional().isIn(['English', 'Spanish', 'French']).withMessage('Invalid language'),
-
-    body('top_store').optional().isBoolean().withMessage('Top store must be a boolean'),
-    body('editors_choice').optional().isBoolean().withMessage('Editor\'s choice must be a boolean'),
-];
+module.exports = {
+    createStoreSchema,
+    updateStoreSchema
+};
