@@ -1,12 +1,22 @@
 const Category = require('../models/categoryModel');
+const categoryService = require('../services/categoryService');
+const AppError = require('../errors/AppError');
 
 // Get all categories
-exports.getCategories = async (req, res) => {
+exports.getCategories = async (req, res, next) => {
     try {
-        const categories = await Category.find().select('-__v');
-        res.status(200).json({ status: 'success', data: categories });
+        const result = await categoryService.getCategories(req.query);
+        res.status(200).json({
+            status: 'success',
+            data: {
+                categories: result.categories,
+                totalCategories: result.totalCategories,
+                currentPage: result.currentPage,
+                totalPages: result.totalPages
+            }
+        });
     } catch (error) {
-        res.status(500).json({ status: 'error', message: 'Error fetching categories', error: error.message });
+        next(new AppError(error.message || 'Error fetching categories', error.statusCode || 500));
     }
 };
 

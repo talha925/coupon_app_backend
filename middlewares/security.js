@@ -112,15 +112,21 @@ const configureCors = (req, res, next) => {
     // Set proper CORS headers with restricted origins
     const allowedOrigins = process.env.ALLOWED_ORIGINS 
         ? process.env.ALLOWED_ORIGINS.split(',') 
-        : ['http://localhost:3000'];
+        : ['http://localhost:3000', 'http://localhost:8080', 'http://localhost:5000'];
         
     const origin = req.headers.origin;
-    if (allowedOrigins.includes(origin) || !origin) {
+    
+    // Allow all origins in development, or specific origins in production
+    if (process.env.NODE_ENV === 'development') {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+    } else if (allowedOrigins.includes(origin) || !origin) {
         res.setHeader('Access-Control-Allow-Origin', origin || '*');
     }
-    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization');
+    
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Accept');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
     
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
