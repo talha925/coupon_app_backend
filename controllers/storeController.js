@@ -3,6 +3,18 @@ const Store = require('../models/storeModel');
 const storeService = require('../services/storeService');
 const AppError = require('../errors/AppError');
 
+
+// ✅ Fix missing function
+const htmlDecode = (str) => {
+    if (!str || typeof str !== 'string') return str;
+    return str
+      .replace(/&amp;/g, '&')
+      .replace(/&#x2F;/g, '/')
+      .replace(/&#39;/g, "'")
+      .replace(/&quot;/g, '"');
+  };
+
+
 // Fetch all stores
 exports.getStores = async (req, res, next) => {
     try {
@@ -47,33 +59,40 @@ exports.searchStores = async (req, res, next) => {
 
 
 // Create a new store
+// Create a new store
 exports.createStore = async (req, res, next) => {
     try {
-        console.log("🚀 Received Data for Store Creation:", JSON.stringify(req.body, null, 2));
-
-        // Required fields check handled by validator middleware
-
-        const newStore = await storeService.createStore(req.body);
-        console.log(" Store Created Successfully:", newStore);
-        
-        res.status(201).json({ status: 'success', data: newStore });
+      console.log("Received Data for Store Creation:", JSON.stringify(req.body, null, 2));
+  
+      //  Decode HTML-encoded fields
+      if (req.body.trackingUrl) {
+        req.body.trackingUrl = htmlDecode(req.body.trackingUrl);
+      }
+      if (req.body.heading) {
+        req.body.heading = htmlDecode(req.body.heading);
+      }
+  
+      const newStore = await storeService.createStore(req.body);
+      console.log(" Store Created Successfully:", newStore);
+  
+      res.status(201).json({ status: 'success', data: newStore });
     } catch (error) {
-        console.error(" Error creating store:", error);
-
-        let errorMessage = 'Error creating store';
-        let statusCode = 500;
-
-        if (error.name === 'ValidationError') {
-            errorMessage = Object.values(error.errors).map(err => err.message).join(', ');
-            statusCode = 400;
-        } else if (error.code === 11000) {
-            errorMessage = 'Duplicate entry for name or slug';
-            statusCode = 400;
-        }
-
-        next(new AppError(errorMessage, statusCode));
+      console.error("Error creating store:", error);
+  
+      let errorMessage = 'Error creating store';
+      let statusCode = 500;
+  
+      if (error.name === 'ValidationError') {
+        errorMessage = Object.values(error.errors).map(err => err.message).join(', ');
+        statusCode = 400;
+      } else if (error.code === 11000) {
+        errorMessage = 'Duplicate entry for name or slug';
+        statusCode = 400;
+      }
+  
+      next(new AppError(errorMessage, statusCode));
     }
-};
+  };
 
 
 // Update a store by ID

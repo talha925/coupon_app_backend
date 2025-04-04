@@ -105,14 +105,13 @@ exports.searchStores = async ({ query, page = 1, limit = 10 }) => {
 exports.createStore = async (storeData) => {
     try {
         const {
-            name, directUrl, trackingUrl, short_description, long_description,
+            name, trackingUrl, short_description, long_description,
             image, categories, seo, language, isTopStore, isEditorsChoice, heading
         } = storeData;
 
         // Create store with processed data
         const newStore = await Store.create({
             name,
-            directUrl,
             trackingUrl,
             short_description,
             long_description,
