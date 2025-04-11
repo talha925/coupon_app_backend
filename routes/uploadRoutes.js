@@ -28,7 +28,9 @@ router.post('/', upload.single('image'), async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
-    const fileKey = `${uuidv4()}-${encodeURIComponent(req.file.originalname)}`;
+    // const fileKey = `${uuidv4()}-${encodeURIComponent(req.file.originalname)}`;
+const fileKey = `${Date.now()}-${uuidv4()}-${encodeURIComponent(req.file.originalname)}`;
+
     console.log('Generated File Key:', fileKey);
 
     const uploadParams = {
@@ -116,5 +118,7 @@ router.post('/delete-image', async (req, res) => {
       }
   }
 });
+
+
 
 module.exports = router;
