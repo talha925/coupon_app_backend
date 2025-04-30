@@ -1,18 +1,37 @@
 const couponService = require('../services/couponService');
 
-// Get all coupons
-exports.getCoupons = async (req, res, next) => {
+// Get all coupons for a specific store with pagination
+exports.getCouponsByStore = async (req, res, next) => {
   try {
-    const result = await couponService.getCoupons(req.query);
-    
+    const result = await couponService.getCouponsByStore(req.query, req.params.storeId);
+
     res.status(200).json({
       status: 'success',
       data: result.coupons,
       metadata: {
         totalCoupons: result.totalCoupons,
         currentPage: result.currentPage,
-        totalPages: result.totalPages
-      }
+        totalPages: result.totalPages,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get all coupons with pagination
+exports.getCoupons = async (req, res, next) => {
+  try {
+    const result = await couponService.getCoupons(req.query);
+
+    res.status(200).json({
+      status: 'success',
+      data: result.coupons,
+      metadata: {
+        totalCoupons: result.totalCoupons,
+        currentPage: result.currentPage,
+        totalPages: result.totalPages,
+      },
     });
   } catch (error) {
     next(error);
@@ -53,10 +72,10 @@ exports.deleteCoupon = async (req, res, next) => {
 exports.trackCouponUrl = async (req, res, next) => {
   try {
     const coupon = await couponService.trackCouponUsage(req.params.couponId);
-    
+
     // Log the tracking event
     console.log(`Coupon tracked: ${coupon._id}, Hits: ${coupon.hits}, Last Accessed: ${coupon.lastAccessed}`);
-    
+
     res.status(200).json({ status: 'success', data: coupon });
   } catch (error) {
     next(error);

@@ -1,33 +1,27 @@
 const express = require('express');
-const {
-    getCoupons,
-    createCoupon,
-    getCouponById,
-    updateCoupon,
-    deleteCoupon,
-    trackCouponUrl
-} = require('../controllers/couponController');
-const validator = require('../middlewares/validator');
-const { createCouponSchema, updateCouponSchema } = require('../validators/couponValidator');
-
 const router = express.Router();
+const couponController = require('../controllers/couponController');
+const authController = require('../controllers/authController');
 
-// Get all coupons (with pagination and filtering)
-router.get('/', getCoupons);
+// Get all coupons for a specific store
+router.get('/store/:storeId', couponController.getCouponsByStore);
 
-// Create a new coupon with validation
-router.post('/', validator(createCouponSchema), createCoupon);
+// Get all coupons
+router.get('/', couponController.getCoupons);
+
+// Create a new coupon
+router.post('/', couponController.createCoupon);
 
 // Get coupon by ID
-router.get('/:id', getCouponById);
+router.get('/:id', couponController.getCouponById);
 
-// Update coupon by ID with validation
-router.put('/:id', validator(updateCouponSchema), updateCoupon);
+// Update coupon by ID
+router.put('/:id', couponController.updateCoupon);
 
 // Delete coupon by ID
-router.delete('/:id', deleteCoupon);
+router.delete('/:id', couponController.deleteCoupon);
 
 // Track coupon usage
-router.post('/:couponId/track', trackCouponUrl); 
+router.post('/:couponId/track', couponController.trackCouponUrl);
 
 module.exports = router;

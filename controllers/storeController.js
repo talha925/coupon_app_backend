@@ -15,6 +15,27 @@ const htmlDecode = (str) => {
   };
 
 
+  // Get stores with pagination
+  exports.getStores = async (req, res, next) => {
+    try {
+      const result = await storeService.getStores(req.query);
+      
+      res.status(200).json({
+        status: 'success',
+        data: result.stores,
+        metadata: {
+          totalStores: result.totalStores,
+          timestamp: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+  
+
+
+
 // Fetch all stores
 exports.getStores = async (req, res, next) => {
     try {
