@@ -145,6 +145,40 @@ GET https://coupon-app-backend.vercel.app/api/stores/search?query={searchTerm}
 GET https://coupon-app-backend.vercel.app/api/stores/slug/{slug}
 ```
 
+### Get Store by ID
+
+```http
+GET https://coupon-app-backend.vercel.app/api/stores/:id
+Authorization: Bearer {token}
+
+Response:
+{
+  "status": "success",
+  "data": {
+    "_id": "store_id",
+    "name": "Store Name",
+    "slug": "store-name",
+    "trackingUrl": "https://store.com?ref=couponsite",
+    "short_description": "Store description",
+    "long_description": "Detailed store description",
+    "image": {
+      "url": "https://example.com/image.jpg",
+      "alt": "Store logo"
+    },
+    "categories": ["categoryId1"],
+    "seo": {
+      "meta_title": "Store Title",
+      "meta_description": "Store description",
+      "meta_keywords": "keywords"
+    },
+    "language": "English",
+    "isTopStore": false,
+    "isEditorsChoice": false,
+    "heading": "Coupons & Promo Codes"
+  }
+}
+```
+
 ### Create Store
 
 ```http
@@ -226,6 +260,37 @@ Response:
 }
 ```
 
+### Get Coupon by ID
+
+```http
+GET https://coupon-app-backend.vercel.app/api/coupons/:id
+
+Response:
+{
+  "status": "success",
+  "data": {
+    "_id": "coupon_id",
+    "offerDetails": "Offer description",
+    "code": "COUPON123",
+    "active": true,
+    "isValid": true,
+    "store": {
+      "_id": "store_id",
+      "name": "Store Name",
+      "image": {
+        "url": "https://example.com/image.jpg",
+        "alt": "Store logo"
+      },
+      "trackingUrl": "https://store.com?ref=couponsite"
+    },
+    "featuredForHome": false,
+    "hits": 0,
+    "lastAccessed": "2025-05-08T10:00:00.000Z",
+    "expirationDate": "2025-12-31T23:59:59.999Z"
+  }
+}
+```
+
 ### Create Coupon
 
 ```http
@@ -274,6 +339,25 @@ Response:
     "totalCategories": 20,
     "currentPage": 1,
     "totalPages": 1
+  }
+}
+```
+
+### Get Category by ID
+
+```http
+GET https://coupon-app-backend.vercel.app/api/categories/:id
+
+Response:
+{
+  "status": "success",
+  "data": {
+    "_id": "category_id",
+    "name": "Category Name",
+    "description": "Category description",
+    "icon": "https://example.com/icon.svg",
+    "active": true,
+    "order": 0
   }
 }
 ```
