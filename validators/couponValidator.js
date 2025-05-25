@@ -55,7 +55,22 @@ const updateCouponSchema = Joi.object({
     'object.min': 'At least one field is required to update'
 });
 
+/**
+ * Schema for updating coupon order
+ */
+const updateCouponOrderSchema = Joi.object({
+    orderedCouponIds: Joi.array().items(
+        Joi.string().pattern(/^[0-9a-fA-F]{24}$/).messages({
+            'string.pattern.base': 'Coupon ID must be a valid MongoDB ObjectId'
+        })
+    ).required().min(1).messages({
+        'array.min': 'At least one coupon ID is required',
+        'any.required': 'Ordered coupon IDs are required'
+    })
+});
+
 module.exports = { 
     createCouponSchema,
-    updateCouponSchema
+    updateCouponSchema,
+    updateCouponOrderSchema
 };

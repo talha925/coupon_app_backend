@@ -87,16 +87,7 @@ exports.createCoupon = async (couponData) => {
     const storeExists = await Store.findById(couponData.store);
     if (!storeExists) {
       throw new AppError('Invalid Store ID', 400);
-    }
-
-    if (couponData.code) {
-      const existingCoupon = await Coupon.findOne({ code: couponData.code });
-      if (existingCoupon) {
-        throw new AppError('Coupon code already exists', 400);
-      }
-    }
-
-    const newCoupon = await Coupon.create(couponData);
+    }    const newCoupon = await Coupon.create(couponData);
 
     // Add coupon to store
     await Store.findByIdAndUpdate(couponData.store, {
@@ -202,3 +193,70 @@ exports.getCouponById = async (id) => {
     throw error;
   }
 };
+
+/**
+ * Update the order of coupons for a specific store
+ * @param {string} storeId - The ID of the store
+ * @param {string[]} orderedCouponIds - Array of coupon IDs in their new order
+ * @returns {Promise<Object>} - Success message
+ */
+// Update the order of coupons for a specific store
+exports.updateCouponOrder = async (storeId, orderedCouponIds) => {
+    try {
+        // Validate storeId
+        if (!mongoose.Types.ObjectId.isValid(storeId)) {
+            throw new AppError('Invalid store ID', 400);
+        }
+
+        // Check if store exists
+        const store = await Store.findById(storeId);
+        if (!store) {
+            throw new AppError('Store not found', 404);
+        }
+
+        // Validate all coupon IDs
+        const invalidCoupons = orderedCouponIds.filter(id => !mongoose.Types.ObjectId.isValid(id));
+        if (invalidCoupons.length > 0) {
+            throw new AppError(`Invalid coupon IDs: ${invalidCoupons.join(', ')}`, 400);
+        }
+
+        // Verify all coupons exist and belong to the store
+        const coupons = await Coupon.find({
+            _id: { $in: orderedCouponIds },
+            store: storeId
+        });
+
+        if (coupons.length !== orderedCouponIds.length) {
+            const foundIds = coupons.map(c => c._id.toString());
+            const missingIds = orderedCouponIds.filter(id => !foundIds.includes(id));
+            throw new AppError(
+                `Some coupons were not found or don't belong to this store: ${missingIds.join(', ')}`,
+                400
+            );
+        }
+
+        // Update the order of each coupon
+        const bulkOps = orderedCouponIds.map((couponId, index) => ({
+            updateOne: {
+                filter: { _id: couponId, store: storeId },
+                update: { $set: { order: index } }
+            }
+        }));
+
+        // Execute the bulk write operation
+        await Coupon.bulkWrite(bulkOps);
+
+        // Log the updated coupons order
+        const updatedCoupons = await Coupon.find({ store: storeId }).sort({ order: 1 });
+        console.log('Updated Coupon Order:', updatedCoupons);  // Log the updated order
+
+        return {
+            message: 'Coupon order updated successfully',
+            totalUpdated: orderedCouponIds.length
+        };
+    } catch (error) {
+        console.error('Error in couponService.updateCouponOrder:', error);
+        throw error instanceof AppError ? error : new AppError(error.message, 500);
+    }
+};
+

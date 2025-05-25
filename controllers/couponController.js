@@ -91,3 +91,30 @@ exports.getCouponById = async (req, res, next) => {
     next(error);
   }
 };
+
+// Update the coupon order for a specific store
+exports.updateCouponOrder = async (req, res, next) => {
+  try {
+    const { storeId } = req.params;
+    const { orderedCouponIds } = req.body;
+
+    // Validate request body using Joi schema
+    const { error } = require('../validators/couponValidator').updateCouponOrderSchema.validate({ orderedCouponIds });
+    if (error) {
+      return next(new AppError(error.details[0].message, 400));
+    }
+
+    // Call service to update coupon order
+    const result = await couponService.updateCouponOrder(storeId, orderedCouponIds);
+
+    // Log the result to see if the order was updated successfully
+    console.log('Order Update Result:', result);  // Log the success message and total updates
+
+    res.status(200).json({
+      status: 'success',
+      data: result
+    });
+  } catch (error) {
+    next(error);
+  }
+};

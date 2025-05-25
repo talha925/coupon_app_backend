@@ -319,6 +319,39 @@ POST https://coupon-app-backend.vercel.app/api/coupons/:couponId/track
 
 This endpoint increments the hit counter and updates lastAccessed timestamp.
 
+### Update Coupon Order
+
+```http
+PUT https://coupon-app-backend.vercel.app/api/coupons/store/:storeId/order
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "orderedCouponIds": [
+    "couponId1",
+    "couponId2",
+    "couponId3"
+  ]
+}
+
+Response:
+{
+  "status": "success",
+  "data": {
+    "message": "Coupon order updated successfully",
+    "totalUpdated": 3
+  }
+}
+```
+
+This endpoint updates the display order of coupons for a specific store. The coupons will be ordered according to their position in the `orderedCouponIds` array.
+
+Error Responses:
+
+- 400: Invalid coupon IDs or store ID
+- 404: Store not found
+- 400: Coupons don't belong to the specified store
+
 ## Category Endpoints
 
 ### List Categories

@@ -24,4 +24,8 @@ router.delete('/:id', couponController.deleteCoupon);
 // Track coupon usage
 router.post('/:couponId/track', couponController.trackCouponUrl);
 
+// Update coupon order for a store
+router.put('/store/:storeId/order', couponController.updateCouponOrder);
+
+
 module.exports = router;
