@@ -16,6 +16,7 @@ exports.getCouponsByStore = async (queryParams, storeId) => {
 
     // Fetch coupons with pagination (limit 20 per page)
     const coupons = await Coupon.find(query)
+      .sort({ order: 1 })  // **Add this line**
       .skip((parseInt(page) - 1) * 20) // Skip based on the page number
       .limit(20) // Limit the number of coupons per page to 20
       .select('-__v') // Exclude the `__v` field from the response
