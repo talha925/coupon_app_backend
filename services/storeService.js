@@ -8,35 +8,27 @@ const AppError = require('../errors/AppError');
  * @returns {Object} Stores with pagination info
  */
 
-
-/**
- * Get stores with filtering, pagination, and sorting
- * @param {Object} queryParams - Query parameters from request
- * @returns {Object} Stores with pagination info
- */
 exports.getStores = async (queryParams) => {
     try {
         const { page = 1, limit = 10, language, category, isTopStore, isEditorsChoice } = queryParams;
         const query = {};
         
-        // Apply filters if they exist
         if (language) query.language = language;
         if (category) query.categories = category;
         if (isTopStore !== undefined) query.isTopStore = isTopStore === 'true';
         if (isEditorsChoice !== undefined) query.isEditorsChoice = isEditorsChoice === 'true';
         
-        // Execute query with pagination and populate coupons
         const stores = await Store.find(query)
             .limit(parseInt(limit))
             .skip((parseInt(page) - 1) * parseInt(limit))
             .populate('categories')
             .populate({
                 path: 'coupons',
-                select: '_id offerDetails code active isValid featuredForHome hits lastAccessed'
+                select: '_id offerDetails code active isValid featuredForHome hits lastAccessed order',
+                options: { sort: { order: 1 } }  // Sorting applied here
             })
             .lean();
         
-        // Get total count for pagination
         const totalStores = await Store.countDocuments(query);
         
         return {
@@ -50,41 +42,6 @@ exports.getStores = async (queryParams) => {
     }
 };
 
-exports.getStores = async (queryParams) => {
-    try {
-        const { page = 1, limit = 10, language, category, isTopStore, isEditorsChoice } = queryParams;
-        const query = {};
-        
-        // Apply filters if they exist
-        if (language) query.language = language;
-        if (category) query.categories = category;
-        if (isTopStore !== undefined) query.isTopStore = isTopStore === 'true';
-        if (isEditorsChoice !== undefined) query.isEditorsChoice = isEditorsChoice === 'true';
-        
-        // Execute query with pagination and populate coupons
-        const stores = await Store.find(query)
-            .limit(parseInt(limit))
-            .skip((parseInt(page) - 1) * parseInt(limit))
-            .populate('categories')
-            .populate({
-                path: 'coupons',
-                select: '_id offerDetails code active isValid featuredForHome hits lastAccessed'
-            })
-            .lean();
-        
-        // Get total count for pagination
-        const totalStores = await Store.countDocuments(query);
-        
-        return {
-            stores,
-            totalStores,
-            timestamp: new Date().toISOString()
-        };
-    } catch (error) {
-        console.error('Error in storeService.getStores:', error);
-        throw error;
-    }
-};
 
 /**
  * Get store by slug

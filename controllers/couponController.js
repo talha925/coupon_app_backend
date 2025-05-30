@@ -1,4 +1,6 @@
 const couponService = require('../services/couponService');
+const { updateCouponOrderSchema } = require('../validators/couponValidator');
+const AppError = require('../errors/AppError');
 
 // Get all coupons for a specific store with pagination
 exports.getCouponsByStore = async (req, res, next) => {
@@ -94,27 +96,25 @@ exports.getCouponById = async (req, res, next) => {
 
 // Update the coupon order for a specific store
 exports.updateCouponOrder = async (req, res, next) => {
+  console.log('Received order update for store:', req.params.storeId);
+  console.log('Ordered coupon IDs:', req.body.orderedCouponIds);
+
   try {
     const { storeId } = req.params;
     const { orderedCouponIds } = req.body;
 
-    // Validate request body using Joi schema
-    const { error } = require('../validators/couponValidator').updateCouponOrderSchema.validate({ orderedCouponIds });
+    const { error } = updateCouponOrderSchema.validate({ orderedCouponIds });
     if (error) {
+      console.log('Validation error:', error.details[0].message);
       return next(new AppError(error.details[0].message, 400));
     }
 
-    // Call service to update coupon order
     const result = await couponService.updateCouponOrder(storeId, orderedCouponIds);
+    console.log('Order update result:', result);
 
-    // Log the result to see if the order was updated successfully
-    console.log('Order Update Result:', result);  // Log the success message and total updates
-
-    res.status(200).json({
-      status: 'success',
-      data: result
-    });
+    res.status(200).json({ status: 'success', data: result });
   } catch (error) {
+    console.error('Error in updateCouponOrder controller:', error);
     next(error);
   }
 };
