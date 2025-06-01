@@ -21,6 +21,15 @@ if (!validateEnv()) {
 // Get configuration
 const config = getConfig();
 
+// Import routes
+const authRoutes = require('./routes/authRoutes');
+const categoryRoutes = require('./routes/categoryRoutes');
+const couponRoutes = require('./routes/couponRoutes');
+const storeRoutes = require('./routes/storeRoutes');
+const uploadRoutes = require('./routes/uploadRoutes');
+const blogRoutes = require('./routes/blogRoutes');
+
+// Create Express app
 const app = express();
 connectDB();      // Connect to MongoDB
 
@@ -45,11 +54,12 @@ app.get('/', (req, res) => {
     res.send('Hello, world!');
 });
 
-app.use('/api/auth', require('./routes/authRoutes'));
-app.use('/api/stores', require('./routes/storeRoutes'));
-app.use('/api/coupons', require('./routes/couponRoutes'));
-app.use('/api/categories', require('./routes/categoryRoutes'));
-app.use('/api/upload', require('./routes/uploadRoutes'));
+app.use('/api/auth', authRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/coupons', couponRoutes);
+app.use('/api/stores', storeRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/blogs', blogRoutes);
 
 // Error handling middleware (must be after routes)
 app.use(errorHandler);

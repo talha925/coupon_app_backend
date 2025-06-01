@@ -80,12 +80,25 @@ const handleJWTExpiredError = () => {
 };
 
 /**
+ * Handle blog-specific errors
+ */
+const handleBlogErrors = (err) => {
+  if (err.code === 11000 && err.keyPattern?.slug) {
+    return new AppError('A blog post with this title already exists', 400);
+  }
+  return err;
+};
+
+/**
  * Main error handler middleware
  */
 const errorHandler = (err, req, res, next) => {
   // Default status code and status
   err.statusCode = err.statusCode || 500;
   err.status = err.status || 'error';
+
+  // Console log for debugging
+  console.error('Error:', err);
 
   // Different handling for development and production
   if (process.env.NODE_ENV === 'development') {
@@ -108,6 +121,9 @@ const errorHandler = (err, req, res, next) => {
     
     // JWT expired error
     if (err.name === 'TokenExpiredError') error = handleJWTExpiredError();
+    
+    // Blog-specific errors
+    if (err.name === 'MongoServerError') error = handleBlogErrors(err);
     
     sendErrorProd(error, res);
   }

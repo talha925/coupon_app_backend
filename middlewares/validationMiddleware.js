@@ -1,29 +1,13 @@
-const { check, validationResult } = require('express-validator');
-
-// Validation rules
-const validateStore = [
-    check('name').notEmpty().withMessage('Store name is required'),
-    check('website').isURL().withMessage('Valid website URL is required'),
-    check('description').notEmpty().withMessage('Description is required'),
-    
-    // Optional SEO fields
-    check('seo.meta_title').optional().isString().withMessage('Meta title must be a string'),
-    check('seo.meta_description').optional().isString().withMessage('Meta description must be a string'),
-    check('seo.meta_keywords').optional().isString().withMessage('Meta keywords must be a string'),
-    
-    // Add more validation rules as needed...
-];
-
-// Validation error handler
-const handleValidationErrors = (req, res, next) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-    }
-    next();
+// middlewares/validationMiddleware.js
+const validate = (schema) => (req, res, next) => {
+  const { error } = schema.validate(req.body, { abortEarly: false, allowUnknown: true });
+  if (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.details.map(d => d.message).join(', '),
+    });
+  }
+  next();
 };
 
-module.exports = {
-    validateStore,
-    handleValidationErrors
-};
+module.exports = validate; // Default export
