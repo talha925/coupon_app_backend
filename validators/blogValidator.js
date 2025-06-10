@@ -31,7 +31,6 @@ const authorSchema = Joi.object({
   image: Joi.string().uri().optional()
 }).optional();
 
-
 const categorySchema = Joi.object({
   id: objectId.required(),
   name: Joi.string().required(),
@@ -52,10 +51,10 @@ const seoSchema = Joi.object({
 
 const engagementSchema = Joi.object({
   readingTime: Joi.string(),
-  wordCount: Joi.number(),
-  likes: Joi.number(),
-  shares: Joi.number(),
-  comments: Joi.number()
+  wordCount: Joi.number().min(0),
+  likes: Joi.number().min(0),
+  shares: Joi.number().min(0),
+  comments: Joi.number().min(0)
 });
 
 const navigationSchema = Joi.object({
@@ -75,6 +74,12 @@ const navigationSchema = Joi.object({
   }))
 });
 
+// FAQ support
+const faqSchema = Joi.object({
+  question: Joi.string().required(),
+  answer: Joi.string().required()
+});
+
 exports.createBlogSchema = Joi.object({
   title: Joi.string().required().max(200),
   shortDescription: Joi.string().max(500),
@@ -91,7 +96,8 @@ exports.createBlogSchema = Joi.object({
   status: Joi.string().valid('draft', 'published'),
   isFeaturedForHome: Joi.boolean(),
   publishDate: Joi.date(),
-  version: Joi.string()
+  version: Joi.string(),
+  faqs: Joi.array().items(faqSchema)
 });
 
 exports.updateBlogSchema = Joi.object({
@@ -110,7 +116,8 @@ exports.updateBlogSchema = Joi.object({
   status: Joi.string().valid('draft', 'published'),
   isFeaturedForHome: Joi.boolean(),
   publishDate: Joi.date(),
-  version: Joi.string()
+  version: Joi.string(),
+  faqs: Joi.array().items(faqSchema)
 }).min(1);
 
 exports.updateEngagementSchema = Joi.object({
