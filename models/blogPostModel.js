@@ -76,10 +76,8 @@ const blogPostSchema = new mongoose.Schema({
     required: [true, 'Blog post title is required'],
     trim: true,
     maxlength: [200, 'Title cannot be more than 200 characters']
-  },
-  slug: {
+  },  slug: {
     type: String,
-    required: true,
     unique: true,
     lowercase: true,
     index: true
@@ -138,26 +136,47 @@ function safeHtml(input) {
 }
 
 blogPostSchema.pre('save', async function (next) {
-  if (!this.isModified('title')) return next();
+  if (this.isNew || this.isModified('title')) {
+    try {
+      // Generate base slug from title
+      let baseSlug = slugify(this.title, {
+        lower: true,          // convert to lowercase
+        strict: true,         // strip special characters except replacement
+        trim: true,          // trim leading and trailing replacement chars
+        remove: /[*+~.()'"!:@]/g  // remove characters that might be unsafe in URLs
+      });
 
-  let slug = slugify(this.title, {
-    lower: true,
-    strict: true,
-    remove: /[*+~.()'"!:@]/g
-  });
+      // Ensure the slug isn't empty after processing
+      if (!baseSlug) {
+        baseSlug = 'untitled';
+      }
 
-  let suffix = 0, unique = false;
-  while (!unique) {
-    const testSlug = suffix ? `${slug}-${suffix}` : slug;
-    const exists = await this.constructor.exists({ slug: testSlug, _id: { $ne: this._id } });
-    if (!exists) {
-      slug = testSlug;
-      unique = true;
-    } else {
-      suffix++;
+      // Find existing slugs that match our pattern
+      const slugRegEx = new RegExp(`^${baseSlug}(-[0-9]*)?$`, 'i');
+      const existingSlugs = await this.constructor.find({ 
+        slug: slugRegEx,
+        _id: { $ne: this._id }  // exclude current document when updating
+      }).select('slug').lean();
+
+      if (existingSlugs.length > 0) {
+        // Find the highest number suffix
+        const suffixes = existingSlugs
+          .map(doc => {
+            const match = doc.slug.match(/-(\d+)$/);
+            return match ? parseInt(match[1]) : 0;
+          })
+          .sort((a, b) => b - a);
+
+        // Add one to the highest suffix
+        const nextSuffix = (suffixes[0] || 0) + 1;
+        this.slug = `${baseSlug}-${nextSuffix}`;
+      } else {
+        this.slug = baseSlug;
+      }
+    } catch (error) {
+      return next(error);
     }
   }
-  this.slug = slug;
   next();
 });
 

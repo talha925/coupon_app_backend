@@ -28,6 +28,7 @@ const couponRoutes = require('./routes/couponRoutes');
 const storeRoutes = require('./routes/storeRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const blogRoutes = require('./routes/blogRoutes');
+const blogCategoryRoutes = require('./routes/blogCategoryRoutes');
 
 // Create Express app
 const app = express();
@@ -60,6 +61,7 @@ app.use('/api/coupons', couponRoutes);
 app.use('/api/stores', storeRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/blogs', blogRoutes);
+app.use('/api/blogCategories', blogCategoryRoutes);
 
 // Error handling middleware (must be after routes)
 app.use(errorHandler);
