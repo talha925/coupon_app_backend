@@ -109,25 +109,30 @@ const setSecurityHeaders = (req, res, next) => {
  * Apply CORS settings
  */
 const configureCors = (req, res, next) => {
-    // Set proper CORS headers with restricted origins
     const allowedOrigins = process.env.ALLOWED_ORIGINS 
         ? process.env.ALLOWED_ORIGINS.split(',') 
-        : ['http://localhost:3000', 'http://localhost:8080', 'http://localhost:5000'];
+        : ['http://localhost:3000', 'https://coupon-app-backend.vercel.app'];
         
     const origin = req.headers.origin;
     
-    // Allow all origins in development, or specific origins in production
-    if (process.env.NODE_ENV === 'development') {
+    // Check if the origin is allowed
+    if (allowedOrigins.includes(origin)) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+    } else if (process.env.NODE_ENV === 'development') {
+        // In development, we can be more permissive
         res.setHeader('Access-Control-Allow-Origin', '*');
-    } else if (allowedOrigins.includes(origin) || !origin) {
-        res.setHeader('Access-Control-Allow-Origin', origin || '*');
+    } else if (!origin) {
+        // Handle requests without origin header (like curl)
+        res.setHeader('Access-Control-Allow-Origin', '*');
     }
     
+    // Set other CORS headers
     res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS,PATCH');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-Requested-With,Accept');
     res.setHeader('Access-Control-Allow-Credentials', 'true');
     res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
     
+    // Handle preflight requests
     if (req.method === 'OPTIONS') {
         return res.status(200).end();
     }
