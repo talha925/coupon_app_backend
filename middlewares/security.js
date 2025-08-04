@@ -110,9 +110,9 @@ const setSecurityHeaders = (req, res, next) => {
  */
 const configureCors = (req, res, next) => {
     const allowedOrigins = process.env.ALLOWED_ORIGINS 
-        ? process.env.ALLOWED_ORIGINS.split(',') 
-        : ['http://localhost:3000', 'https://coupon-app-backend.vercel.app'];
-        
+        ? process.env.ALLOWED_ORIGINS.split(',')
+        : ['http://localhost:3000', 'https://coupon-app-backend.vercel.app', 'https://pd-front-psi.vercel.app'];
+          
     const origin = req.headers.origin;
     
     // Check if the origin is allowed
