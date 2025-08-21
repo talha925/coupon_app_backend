@@ -62,6 +62,39 @@ exports.getStoreBySlug = async (slug) => {
 };
 
 /**
+ * Get store by ID with populated coupons
+ * @param {String} storeId - Store ID
+ * @returns {Object} Store data with populated coupons
+ */
+exports.getStoreById = async (storeId) => {
+    try {
+        // Validate ObjectId format
+        if (!mongoose.Types.ObjectId.isValid(storeId)) {
+            throw new AppError('Invalid store ID format', 400);
+        }
+
+        const store = await Store.findById(storeId)
+            .select('name image trackingUrl short_description long_description coupons categories seo language isTopStore isEditorsChoice heading')
+            .populate({
+                path: 'coupons',
+                select: '_id offerDetails code active isValid order createdAt',
+                match: { active: true }, // Only return active coupons
+                options: { sort: { order: 1, createdAt: -1 } }
+            })
+            .lean();
+
+        if (!store) {
+            throw new AppError('Store not found', 404);
+        }
+
+        return store;
+    } catch (error) {
+        console.error('Error in storeService.getStoreById:', error);
+        throw error;
+    }
+};
+
+/**
  * Search stores with text indexing
  * @param {Object} params - Search parameters
  * @returns {Object} Search results with pagination
@@ -188,4 +221,4 @@ exports.deleteStore = async (id) => {
         console.error('Error in storeService.deleteStore:', error);
         throw error;
     }
-}; 
+};

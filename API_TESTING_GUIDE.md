@@ -145,37 +145,79 @@ GET https://coupon-app-backend.vercel.app/api/stores/search?query={searchTerm}
 GET https://coupon-app-backend.vercel.app/api/stores/slug/{slug}
 ```
 
-### Get Store by ID
+### Get Store by ID with Populated Coupons
 
 ```http
 GET https://coupon-app-backend.vercel.app/api/stores/:id
-Authorization: Bearer {token}
 
 Response:
 {
   "status": "success",
   "data": {
-    "_id": "store_id",
-    "name": "Store Name",
-    "slug": "store-name",
-    "trackingUrl": "https://store.com?ref=couponsite",
-    "short_description": "Store description",
-    "long_description": "Detailed store description",
+    "_id": "6831014bc4ee2827acd01c60",
+    "name": "Amazon",
+    "trackingUrl": "https://amazon.com",
+    "short_description": "Shop the latest deals on Amazon",
+    "long_description": "Amazon is the world's largest online marketplace...",
     "image": {
-      "url": "https://example.com/image.jpg",
-      "alt": "Store logo"
+      "url": "https://cdn.example.com/amazon.png",
+      "alt": "Amazon logo"
     },
+    "coupons": [
+      {
+        "_id": "789abc123",
+        "offerDetails": "20% off on all electronics",
+        "code": "SAVE20",
+        "active": true,
+        "isValid": true,
+        "order": 1,
+        "createdAt": "2025-01-15T10:00:00.000Z"
+      },
+      {
+        "_id": "456def456",
+        "offerDetails": "Free shipping on orders over $50",
+        "code": "FREESHIP",
+        "active": true,
+        "isValid": true,
+        "order": 2,
+        "createdAt": "2025-01-10T10:00:00.000Z"
+      }
+    ],
     "categories": ["categoryId1"],
     "seo": {
-      "meta_title": "Store Title",
-      "meta_description": "Store description",
-      "meta_keywords": "keywords"
+      "meta_title": "Amazon Coupons & Promo Codes",
+      "meta_description": "Get the best Amazon deals and discounts",
+      "meta_keywords": "amazon, coupons, deals, discounts"
     },
     "language": "English",
-    "isTopStore": false,
+    "isTopStore": true,
     "isEditorsChoice": false,
     "heading": "Coupons & Promo Codes"
   }
+}
+```
+
+**Features:**
+- Returns only active coupons
+- Coupons are sorted by order (ascending) and creation date (descending)
+- Optimized query using `.findById().populate()`
+- Proper error handling for invalid/non-existent store IDs
+
+**Error Responses:**
+
+```http
+# Invalid Store ID Format
+HTTP 400 Bad Request
+{
+  "status": "fail",
+  "message": "Invalid store ID format"
+}
+
+# Store Not Found
+HTTP 404 Not Found
+{
+  "status": "fail",
+  "message": "Store not found"
 }
 ```
 

@@ -17,6 +17,9 @@ router.post('/', validator(createStoreSchema), storeController.createStore);
 // Get store by slug
 router.get('/slug/:slug', storeController.getStoreBySlug);
 
+// Get store by ID with populated coupons
+router.get('/:id', storeController.getStoreById);
+
 // Update store by id with validation
 router.put('/:id', validator(updateStoreSchema), storeController.updateStore);
 

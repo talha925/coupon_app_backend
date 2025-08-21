@@ -60,9 +60,24 @@ exports.getStoreBySlug = async (req, res, next) => {
         const store = await storeService.getStoreBySlug(req.params.slug);
         res.status(200).json({ status: 'success', data: store });
     } catch (error) {
-        next(new AppError(error.message || 'Error fetching store', error.statusCode || 500));
+        next(error);
     }
 };
+
+// Get store by ID with populated coupons
+exports.getStoreById = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const store = await storeService.getStoreById(id);
+        
+        res.status(200).json({
+            status: 'success',
+            data: store
+        });
+    } catch (error) {
+        next(error);
+    }
+ };
 
 exports.searchStores = async (req, res, next) => {
     try {
