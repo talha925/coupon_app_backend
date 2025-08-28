@@ -12,6 +12,7 @@ class BlogService {
       storeId, 
       tags, 
       search,
+      FrontBanner,
       sort = '-publishDate' 
     } = queryParams;
 
@@ -22,6 +23,7 @@ class BlogService {
     if (tags) {
       query.tags = Array.isArray(tags) ? { $in: tags } : { $in: tags.split(',') };
     }
+    if (FrontBanner !== undefined) query.FrontBanner = FrontBanner === 'true';
     if (search) {
       query.$text = { $search: search };
     }

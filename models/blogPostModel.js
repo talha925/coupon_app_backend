@@ -103,6 +103,8 @@ const blogPostSchema = new mongoose.Schema({
     default: 'draft'
   },
   isFeaturedForHome: { type: Boolean, default: false },
+  FrontBanner: { type: Boolean, default: false },
+
   publishDate: Date,
   lastUpdated: Date,
   version: { type: String, default: 'v1' },

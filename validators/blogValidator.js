@@ -95,6 +95,7 @@ exports.createBlogSchema = Joi.object({
   tags: Joi.array().items(Joi.string()),
   status: Joi.string().valid('draft', 'published'),
   isFeaturedForHome: Joi.boolean(),
+  FrontBanner: Joi.boolean(),
   publishDate: Joi.date(),
   version: Joi.string(),
   faqs: Joi.array().items(faqSchema)
@@ -115,6 +116,7 @@ exports.updateBlogSchema = Joi.object({
   tags: Joi.array().items(Joi.string()),
   status: Joi.string().valid('draft', 'published'),
   isFeaturedForHome: Joi.boolean(),
+  FrontBanner: Joi.boolean(),
   publishDate: Joi.date(),
   version: Joi.string(),
   faqs: Joi.array().items(faqSchema)
