@@ -47,7 +47,7 @@ class BlogService {
         .sort(sort)
         .skip(skip)
         .limit(parseInt(limit))
-        .select('title slug shortDescription image.url image.alt author.name category.name category.slug store.name store.url tags status publishDate engagement.readingTime') // Only select essential fields for listing
+        .select('title slug shortDescription image.url image.alt author.name category.name category.slug store.name store.url tags status publishDate engagement.readingTime FrontBanner isFeaturedForHome') // Only select essential fields for listing
         .lean(),
       BlogPost.countDocuments(query)
     ]);
