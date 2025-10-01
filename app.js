@@ -7,7 +7,10 @@ const helmet = require('helmet');  // Security middleware
 const errorHandler = require('./middlewares/errorHandler');
 const security = require('./middlewares/security');
 const requestLogger = require('./middlewares/requestLogger');
+const performanceMiddleware = require('./middlewares/performanceMiddleware');
 const { createFirstSuperAdmin } = require('./middlewares/authMiddleware');
+const redisConfig = require('./config/redis');
+const cacheService = require('./services/cacheService');
 
 // Load environment variables
 dotenv.config();
@@ -32,12 +35,31 @@ const blogCategoryRoutes = require('./routes/blogCategoryRoutes');
 
 // Create Express app
 const app = express();
-connectDB();      // Connect to MongoDB
+
+// Setup performance monitoring
+performanceMiddleware.setupQueryMonitoring();
+
+// Initialize services
+async function initializeServices() {
+    try {
+        await connectDB();      // Connect to MongoDB
+        await redisConfig.connect();  // Connect to Redis
+        await cacheService.ensureInitialized();
+        console.log('✅ All services initialized successfully');
+    } catch (error) {
+        console.error('❌ Service initialization error:', error);
+        // Continue without cache if Redis fails
+    }
+}
+
+initializeServices();
 
 // Create initial super-admin if needed
 createFirstSuperAdmin();
 
-// Request Logging
+// Request Logging and Performance Monitoring
+app.use(performanceMiddleware.requestTimer);
+app.use(performanceMiddleware.performanceSummary);
 app.use(requestLogger);
 
 // Security Middleware
@@ -52,8 +74,16 @@ app.use(security.preventParamPollution(['category', 'language', 'isTopStore']));
 
 // Routes
 app.get('/', (req, res) => {
-    res.send('Hello, world!');
+    res.json({ 
+        message: 'Coupon Backend API', 
+        version: '1.0.0',
+        status: 'running',
+        timestamp: new Date().toISOString()
+    });
 });
+
+// Health check endpoint
+app.get('/health', performanceMiddleware.healthCheck);
 
 app.use('/api/auth', authRoutes);
 app.use('/api/categories', categoryRoutes);
@@ -68,6 +98,19 @@ app.use(errorHandler);
 
 // Start the server
 const PORT = config.port;
-app.listen(PORT, () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running in ${config.nodeEnv} mode on port ${PORT}`);
+});
+
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+    console.log('🔄 SIGTERM received, shutting down gracefully...');
+    await redisConfig.disconnect();
+    process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+    console.log('🔄 SIGINT received, shutting down gracefully...');
+    await redisConfig.disconnect();
+    process.exit(0);
 });

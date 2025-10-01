@@ -23,9 +23,7 @@ const blogCategorySchema = new mongoose.Schema({
     toObject: { virtuals: true }
 });
 
-// Manually add indexes using schema.index()
-blogCategorySchema.index({ name: 1 });  // Create index for "name"
-blogCategorySchema.index({ slug: 1 });  // Create index for "slug"
+// Note: `unique: true` on name and slug already creates indexes automatically
 
 // Pre-save middleware to generate slug
 blogCategorySchema.pre('save', async function(next) {

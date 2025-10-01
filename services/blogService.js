@@ -1,5 +1,6 @@
 const BlogPost = require('../models/blogPostModel');
 const AppError = require('../errors/AppError');
+const cacheService = require('./cacheService');
 
 class BlogService {
   // Find all blog posts with pagination, search, filter, sort
@@ -15,6 +16,17 @@ class BlogService {
       FrontBanner,
       sort = '-publishDate' 
     } = queryParams;
+
+    // Check cache for front banner blogs
+    if (FrontBanner === 'true' || FrontBanner === true) {
+      const cacheKey = { page, limit, status, categoryId, storeId, tags, search, sort };
+      const cachedBlogs = await cacheService.getCachedFrontBannerBlogs(cacheKey);
+      
+      if (cachedBlogs) {
+        console.log('✅ Cache hit: Front banner blogs');
+        return cachedBlogs;
+      }
+    }
 
     const query = {};
     if (status) query.status = status;
@@ -35,12 +47,12 @@ class BlogService {
         .sort(sort)
         .skip(skip)
         .limit(parseInt(limit))
-        .select('-longDescription') // hide heavy field for listing
+        .select('title slug shortDescription image.url image.alt author.name category.name category.slug store.name store.url tags status publishDate engagement.readingTime') // Only select essential fields for listing
         .lean(),
       BlogPost.countDocuments(query)
     ]);
 
-    return {
+    const result = {
       blogs,
       pagination: {
         total,
@@ -49,6 +61,15 @@ class BlogService {
         limit: parseInt(limit)
       }
     };
+
+    // Cache front banner blogs
+    if (FrontBanner === 'true' || FrontBanner === true) {
+      const cacheKey = { page, limit, status, categoryId, storeId, tags, search, sort };
+      await cacheService.setCachedFrontBannerBlogs(result, cacheKey);
+      console.log('✅ Cache set: Front banner blogs');
+    }
+
+    return result;
   }
 
   // Find one blog by ID
@@ -70,6 +91,10 @@ class BlogService {
       blogData.publishDate = new Date();
     }
     const blog = await BlogPost.create(blogData);
+    
+    // Invalidate blog caches
+    await cacheService.invalidateBlogCaches();
+    
     return blog;
   }
 
@@ -94,6 +119,10 @@ class BlogService {
       { new: true, runValidators: true }
     ).lean();
     if (!blog) throw new AppError('Blog post not found', 404);
+    
+    // Invalidate blog caches
+    await cacheService.invalidateBlogCaches();
+    
     return blog;
   }
 
@@ -101,6 +130,10 @@ class BlogService {
   async delete(id) {
     const blog = await BlogPost.findByIdAndDelete(id);
     if (!blog) throw new AppError('Blog post not found', 404);
+    
+    // Invalidate blog caches
+    await cacheService.invalidateBlogCaches();
+    
     return null;
   }
 

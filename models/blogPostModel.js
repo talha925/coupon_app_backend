@@ -124,6 +124,8 @@ blogPostSchema.index({ 'store.id': 1, status: 1 });
 blogPostSchema.index({ tags: 1 });
 blogPostSchema.index({ status: 1, publishDate: -1 });
 blogPostSchema.index({ isFeaturedForHome: 1, status: 1, publishDate: -1 });
+// Critical compound index for FrontBanner queries with publishDate sorting
+blogPostSchema.index({ FrontBanner: 1, publishDate: -1 });
 
 // --- Helpers & Pre-save Hooks ---
 

@@ -1,0 +1,49 @@
+{
+  "timestamp": "2025-10-01T00:08:07.662Z",
+  "testConfig": {
+    "baseUrl": "http://localhost:5000",
+    "iterations": 5
+  },
+  "results": [
+    {
+      "endpoint": "/api/blogs?frontBanner=true&limit=10",
+      "description": "Front Banner Blogs (Current Query - BEFORE optimization)",
+      "avgTime": 196.4,
+      "minTime": 175,
+      "maxTime": 259,
+      "avgDataSize": 9043,
+      "avgRecordCount": 0,
+      "successRate": 100
+    },
+    {
+      "endpoint": "/api/blogs?frontBanner=true&limit=5",
+      "description": "Front Banner Blogs - Small Limit",
+      "avgTime": 180.4,
+      "minTime": 175,
+      "maxTime": 193,
+      "avgDataSize": 4693,
+      "avgRecordCount": 0,
+      "successRate": 100
+    },
+    {
+      "endpoint": "/api/blogs?frontBanner=true&limit=20",
+      "description": "Front Banner Blogs - Large Limit",
+      "avgTime": 182.8,
+      "minTime": 175,
+      "maxTime": 196,
+      "avgDataSize": 13489,
+      "avgRecordCount": 0,
+      "successRate": 100
+    },
+    {
+      "endpoint": "/api/blogs?limit=10",
+      "description": "All Blogs - No Filter",
+      "avgTime": 183,
+      "minTime": 177,
+      "maxTime": 191,
+      "avgDataSize": 9043,
+      "avgRecordCount": 0,
+      "successRate": 100
+    }
+  ]
+}

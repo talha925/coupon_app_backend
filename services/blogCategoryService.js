@@ -1,11 +1,24 @@
 const BlogCategory = require('../models/blogCategoryModel');
 const AppError = require('../errors/AppError');
+const cacheService = require('./cacheService');
 
 class BlogCategoryService {
     async findAll() {
+        // Check cache first
+        const cachedCategories = await cacheService.getCachedCategories();
+        if (cachedCategories) {
+            console.log('✅ Cache hit: Blog categories');
+            return cachedCategories;
+        }
+
         const categories = await BlogCategory.find()
             .sort({ name: 1 })
             .lean();
+        
+        // Cache the result
+        await cacheService.setCachedCategories(categories);
+        console.log('✅ Cache set: Blog categories');
+        
         return categories;
     }
 
@@ -20,6 +33,10 @@ class BlogCategoryService {
     async create(categoryData) {
         try {
             const category = await BlogCategory.create(categoryData);
+            
+            // Invalidate category caches
+            await cacheService.invalidateCategoryCaches();
+            
             return category.toObject();
         } catch (error) {
             if (error.code === 11000) {
@@ -38,6 +55,9 @@ class BlogCategoryService {
             if (!category) {
                 throw new AppError('Blog category not found', 404);
             }
+
+            // Invalidate category caches
+            await cacheService.invalidateCategoryCaches();
 
             return category.toObject();
         } catch (error) {
@@ -67,17 +87,11 @@ class BlogCategoryService {
         }
 
         await category.deleteOne();
-        return true;
-    }
-
-    async delete(id) {
-        const category = await BlogCategory.findByIdAndDelete(id);
         
-        if (!category) {
-            throw new AppError('Blog category not found', 404);
-        }
-
-        return { message: 'Blog category deleted successfully' };
+        // Invalidate category caches
+        await cacheService.invalidateCategoryCaches();
+        
+        return true;
     }
 }
 
