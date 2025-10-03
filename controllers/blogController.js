@@ -13,12 +13,19 @@ exports.getBlogs = catchAsync(async (req, res) => {
 });
 
 exports.getBlogById = catchAsync(async (req, res) => {
-  const blog = await BlogService.findById(req.params.id);
+  // PERFORMANCE: Parallel execution for blog and related data
+  const [blog, relatedPosts] = await Promise.all([
+    BlogService.findById(req.params.id),
+    BlogService.getRelatedPosts(null, null, req.params.id, 3) // Get 3 related posts
+  ]);
   
   res.status(200).json({
     success: true,
     message: 'Blog post retrieved successfully',
-    data: blog
+    data: {
+      blog,
+      relatedPosts
+    }
   });
 });
 

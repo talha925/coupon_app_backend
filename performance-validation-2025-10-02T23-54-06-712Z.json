@@ -1,0 +1,84 @@
+{
+  "timestamp": "2025-10-02T23:54:06.711Z",
+  "testDuration": 10886,
+  "results": [
+    {
+      "endpoint": "Blog Categories (All)",
+      "url": "/blogCategories",
+      "iterations": 5,
+      "averageTime": 350,
+      "minTime": 147,
+      "maxTime": 780,
+      "successRate": 100
+    },
+    {
+      "endpoint": "Blogs (Front Banner)",
+      "url": "/blogs?frontBanner=true",
+      "iterations": 5,
+      "averageTime": 157,
+      "minTime": 151,
+      "maxTime": 170,
+      "successRate": 100
+    },
+    {
+      "endpoint": "Blogs (Default)",
+      "url": "/blogs",
+      "iterations": 5,
+      "averageTime": 151,
+      "minTime": 144,
+      "maxTime": 158,
+      "successRate": 100
+    },
+    {
+      "endpoint": "Blogs (Paginated)",
+      "url": "/blogs?page=1&limit=5",
+      "iterations": 5,
+      "averageTime": 283,
+      "minTime": 166,
+      "maxTime": 422,
+      "successRate": 100
+    },
+    {
+      "endpoint": "Blogs (Search)",
+      "url": "/blogs?search=test",
+      "iterations": 5,
+      "averageTime": 388,
+      "minTime": 145,
+      "maxTime": 1171,
+      "successRate": 100
+    },
+    {
+      "endpoint": "Blogs (Category Filter)",
+      "url": "/blogs?categoryId=507f1f77bcf86cd799439011",
+      "iterations": 5,
+      "averageTime": 231,
+      "minTime": 145,
+      "maxTime": 481,
+      "successRate": 100
+    },
+    {
+      "endpoint": "Blog Categories (Cached)",
+      "url": "/blogCategories",
+      "iterations": 5,
+      "averageTime": 157,
+      "minTime": 148,
+      "maxTime": 179,
+      "successRate": 100
+    },
+    {
+      "endpoint": "Blogs Front Banner (Cached)",
+      "url": "/blogs?frontBanner=true",
+      "iterations": 5,
+      "averageTime": 291,
+      "minTime": 166,
+      "maxTime": 506,
+      "successRate": 100
+    }
+  ],
+  "summary": {
+    "overallAverage": 251,
+    "fastEndpoints": 8,
+    "slowEndpoints": 0,
+    "totalEndpoints": 8
+  }
+}

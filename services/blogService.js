@@ -17,17 +17,17 @@ class BlogService {
       sort = '-publishDate' 
     } = queryParams;
 
-    // Check cache for front banner blogs
-    if (FrontBanner === 'true' || FrontBanner === true) {
-      const cacheKey = { page, limit, status, categoryId, storeId, tags, search, sort };
-      const cachedBlogs = await cacheService.getCachedFrontBannerBlogs(cacheKey);
-      
-      if (cachedBlogs) {
-        console.log('✅ Cache hit: Front banner blogs');
-        return cachedBlogs;
-      }
+    // PERFORMANCE: Generate cache key for all queries, not just FrontBanner
+    const cacheKey = this.generateCacheKey('blogs', { page, limit, status, categoryId, storeId, tags, search, FrontBanner, sort });
+    
+    // Check cache first for all queries
+    const cachedResult = await cacheService.get(cacheKey);
+    if (cachedResult) {
+      console.log(`✅ Cache hit: Blog query - ${cacheKey}`);
+      return cachedResult;
     }
 
+    // Build optimized query
     const query = {};
     if (status) query.status = status;
     if (categoryId) query['category.id'] = categoryId;
@@ -42,13 +42,14 @@ class BlogService {
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
+    // PERFORMANCE: Use lean() and optimized field selection
     const [blogs, total] = await Promise.all([
       BlogPost.find(query)
         .sort(sort)
         .skip(skip)
         .limit(parseInt(limit))
-        .select('title slug shortDescription image.url image.alt author.name category.name category.slug store.name store.url tags status publishDate engagement.readingTime FrontBanner isFeaturedForHome') // Only select essential fields for listing
-        .lean(),
+        .select('title slug shortDescription image.url image.alt author.name category.name category.slug store.name store.url tags status publishDate engagement.readingTime FrontBanner isFeaturedForHome createdAt')
+        .lean(), // Critical for performance
       BlogPost.countDocuments(query)
     ]);
 
@@ -62,20 +63,57 @@ class BlogService {
       }
     };
 
-    // Cache front banner blogs
-    if (FrontBanner === 'true' || FrontBanner === true) {
-      const cacheKey = { page, limit, status, categoryId, storeId, tags, search, sort };
-      await cacheService.setCachedFrontBannerBlogs(result, cacheKey);
-      console.log('✅ Cache set: Front banner blogs');
-    }
+    // PERFORMANCE: Cache all results with 5-minute TTL (300 seconds)
+    await cacheService.set(cacheKey, result, 300);
+    console.log(`✅ Cache set: Blog query - ${cacheKey}`);
 
     return result;
   }
 
-  // Find one blog by ID
+  // PERFORMANCE: Generate consistent cache keys
+  generateCacheKey(type, params) {
+    const sortedParams = Object.keys(params)
+      .sort()
+      .map(key => `${key}:${params[key]}`)
+      .join('|');
+    return `${type}:${sortedParams}`;
+  }
+
+  // Find one blog by ID with enhanced data
   async findById(id) {
-    const blog = await BlogPost.findById(id).lean();
+    // PERFORMANCE: Check cache first
+    const cacheKey = this.generateCacheKey('blog', { id });
+    const cachedBlog = await cacheService.get(cacheKey);
+    
+    if (cachedBlog) {
+      console.log(`✅ Cache hit: Blog by ID - ${id}`);
+      return cachedBlog;
+    }
+
+    // PERFORMANCE: Parallel execution for blog data and category info
+    const [blog, categoryInfo] = await Promise.all([
+      BlogPost.findById(id).lean(),
+      // Get additional category information if blog has category
+      BlogPost.findById(id).select('category.id').lean().then(async (blogData) => {
+        if (blogData?.category?.id) {
+          const BlogCategory = require('../models/blogCategoryModel');
+          return BlogCategory.findById(blogData.category.id).select('name slug').lean();
+        }
+        return null;
+      })
+    ]);
+
     if (!blog) throw new AppError('Blog post not found', 404);
+    
+    // Enhance blog with additional category info if available
+    if (categoryInfo) {
+      blog.category = { ...blog.category, ...categoryInfo };
+    }
+    
+    // PERFORMANCE: Cache individual blog with 30-minute TTL
+    await cacheService.set(cacheKey, blog, 1800);
+    console.log(`✅ Cache set: Blog by ID - ${id}`);
+    
     return blog;
   }
 
@@ -92,37 +130,45 @@ class BlogService {
     }
     const blog = await BlogPost.create(blogData);
     
-    // Invalidate blog caches
-    await cacheService.invalidateBlogCaches();
+    // PERFORMANCE: Invalidate all blog-related caches
+    await this.invalidateAllBlogCaches();
     
     return blog;
   }
 
   // Update blog post by ID
   async update(id, updateData) {
-    // Data consistency: engagement metrics always non-negative
-    if (updateData.engagement) {
-      updateData.engagement.likes = Math.max(0, updateData.engagement.likes || 0);
-      updateData.engagement.shares = Math.max(0, updateData.engagement.shares || 0);
-      updateData.engagement.comments = Math.max(0, updateData.engagement.comments || 0);
-    }
+    // PERFORMANCE: Parallel execution for validation and update preparation
+    const [currentBlog, validationChecks] = await Promise.all([
+      BlogPost.findById(id).select('status publishDate').lean(),
+      Promise.resolve().then(() => {
+        // Data consistency: engagement metrics always non-negative
+        if (updateData.engagement) {
+          updateData.engagement.likes = Math.max(0, updateData.engagement.likes || 0);
+          updateData.engagement.shares = Math.max(0, updateData.engagement.shares || 0);
+          updateData.engagement.comments = Math.max(0, updateData.engagement.comments || 0);
+        }
+        return true;
+      })
+    ]);
+
+    if (!currentBlog) throw new AppError('Blog post not found', 404);
+
     // If moving to published, set publishDate
-    if (updateData.status === 'published') {
-      const currentBlog = await BlogPost.findById(id);
-      if (currentBlog && currentBlog.status !== 'published') {
-        updateData.publishDate = new Date();
-      }
+    if (updateData.status === 'published' && currentBlog.status !== 'published') {
+      updateData.publishDate = new Date();
     }
-    const blog = await BlogPost.findByIdAndUpdate(
-      id,
-      { ...updateData, lastUpdated: new Date() },
-      { new: true, runValidators: true }
-    ).lean();
-    if (!blog) throw new AppError('Blog post not found', 404);
-    
-    // Invalidate blog caches
-    await cacheService.invalidateBlogCaches();
-    
+
+    // PERFORMANCE: Parallel execution for update and cache invalidation
+    const [blog] = await Promise.all([
+      BlogPost.findByIdAndUpdate(
+        id,
+        { ...updateData, lastUpdated: new Date() },
+        { new: true, runValidators: true }
+      ).lean(),
+      this.invalidateAllBlogCaches() // Start cache invalidation in parallel
+    ]);
+
     return blog;
   }
 
@@ -131,15 +177,40 @@ class BlogService {
     const blog = await BlogPost.findByIdAndDelete(id);
     if (!blog) throw new AppError('Blog post not found', 404);
     
-    // Invalidate blog caches
-    await cacheService.invalidateBlogCaches();
+    // PERFORMANCE: Invalidate all blog-related caches
+    await this.invalidateAllBlogCaches();
     
     return null;
   }
 
+  // PERFORMANCE: Comprehensive cache invalidation
+  async invalidateAllBlogCaches() {
+    try {
+      // Use pattern-based deletion for efficiency
+      await Promise.all([
+        cacheService.delPattern('blogs:*'),
+        cacheService.delPattern('blog:*'),
+        cacheService.delPattern('related:*'),
+        cacheService.invalidateBlogCaches() // Legacy method for compatibility
+      ]);
+      console.log('✅ All blog caches invalidated');
+    } catch (error) {
+      console.error('❌ Cache invalidation error:', error);
+    }
+  }
+
   // Related posts based on category + store, excluding current
   async getRelatedPosts(categoryId, storeId, excludeId, limit = 3) {
-    return BlogPost.find({
+    // PERFORMANCE: Check cache first
+    const cacheKey = this.generateCacheKey('related', { categoryId, storeId, excludeId, limit });
+    const cachedRelated = await cacheService.get(cacheKey);
+    
+    if (cachedRelated) {
+      console.log(`✅ Cache hit: Related posts - ${excludeId}`);
+      return cachedRelated;
+    }
+
+    const relatedPosts = await BlogPost.find({
       'category.id': categoryId,
       'store.id': storeId,
       _id: { $ne: excludeId },
@@ -147,8 +218,14 @@ class BlogService {
     })
     .sort('-publishDate')
     .limit(limit)
-    .select('title slug image')
+    .select('title slug image.url image.alt shortDescription publishDate')
     .lean();
+
+    // PERFORMANCE: Cache related posts with 15-minute TTL
+    await cacheService.set(cacheKey, relatedPosts, 900);
+    console.log(`✅ Cache set: Related posts - ${excludeId}`);
+
+    return relatedPosts;
   }
 
   // Engagement update: likes, shares, comments (always non-negative)

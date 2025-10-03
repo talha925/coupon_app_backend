@@ -116,16 +116,23 @@ const blogPostSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// --- Indexes for Performance ---
+// --- OPTIMIZED INDEXES FOR PERFORMANCE ---
 
+// Text search index for title and description
 blogPostSchema.index({ title: 'text', shortDescription: 'text' });
-blogPostSchema.index({ 'category.id': 1, status: 1 });
-blogPostSchema.index({ 'store.id': 1, status: 1 });
-blogPostSchema.index({ tags: 1 });
-blogPostSchema.index({ status: 1, publishDate: -1 });
-blogPostSchema.index({ isFeaturedForHome: 1, status: 1, publishDate: -1 });
-// Critical compound index for FrontBanner queries with publishDate sorting
-blogPostSchema.index({ FrontBanner: 1, publishDate: -1 });
+
+// CRITICAL: Compound indexes for common query patterns
+blogPostSchema.index({ status: 1, publishDate: -1 }); // Most common: published posts by date
+blogPostSchema.index({ FrontBanner: 1, status: 1, publishDate: -1 }); // Critical for front banner queries
+blogPostSchema.index({ isFeaturedForHome: 1, status: 1, publishDate: -1 }); // Featured posts
+blogPostSchema.index({ 'category.id': 1, status: 1, publishDate: -1 }); // Category filtering
+blogPostSchema.index({ 'store.id': 1, status: 1, publishDate: -1 }); // Store filtering
+
+// Additional performance indexes
+blogPostSchema.index({ tags: 1, status: 1 }); // Tag filtering with status
+blogPostSchema.index({ slug: 1 }); // Unique slug lookup (already exists via unique: true)
+blogPostSchema.index({ createdAt: -1 }); // Recent posts sorting
+blogPostSchema.index({ lastUpdated: -1 }); // Recently updated posts
 
 // --- Helpers & Pre-save Hooks ---
 
