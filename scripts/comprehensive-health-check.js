@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const redisConfig = require('../config/redis');
 const cacheService = require('../services/cacheService');
+const { getBaseURL, getTestEndpoints } = require('../utils/configUtils');
 
 /**
  * 🏥 COMPREHENSIVE SYSTEM HEALTH CHECK
@@ -215,14 +216,16 @@ class SystemHealthAnalyzer {
     }
 
     async testAPIPerformance() {
-        const endpoints = [
-            'http://localhost:5000/health',
-            'http://localhost:5000/api/blogs?limit=5',
-            'http://localhost:5000/api/categories?limit=5'
+        // Replace hardcoded URLs with configuration
+        const healthEndpoint = `${this.baseURL}/health`;
+        const apiEndpoints = [
+            healthEndpoint,
+            `${this.baseURL}/api/blogs?limit=5`,
+            `${this.baseURL}/api/categories?limit=5`
         ];
         
         const results = [];
-        for (const endpoint of endpoints) {
+        for (const endpoint of apiEndpoints) {
             try {
                 const start = Date.now();
                 await this.makeRequest(endpoint);

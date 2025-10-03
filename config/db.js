@@ -56,20 +56,67 @@ const setupDatabaseIndexes = async () => {
 };
 
 /**
- * Monitor mongoose connection events
+ * Monitor MongoDB connection health and performance
  */
 const monitorMongooseConnection = () => {
-    mongoose.connection.on('disconnected', () => {
-        console.warn('⚠️ MongoDB disconnected!');
+    const connection = mongoose.connection;
+    
+    // 🔥 CRITICAL: Connection pool monitoring
+    let connectionStats = {
+        connected: 0,
+        disconnected: 0,
+        errors: 0,
+        lastError: null,
+        poolSize: 0
+    };
+    
+    connection.on('connected', () => {
+        connectionStats.connected++;
+        console.log('🟢 MongoDB Connected - Pool initialized');
     });
     
-    mongoose.connection.on('reconnected', () => {
-        console.log('✅ MongoDB reconnected!');
+    connection.on('disconnected', () => {
+        connectionStats.disconnected++;
+        console.log('🔴 MongoDB Disconnected');
+        
+        // 🔥 CRITICAL: Attempt reconnection with exponential backoff
+        setTimeout(() => {
+            console.log('🔄 Attempting MongoDB reconnection...');
+            mongoose.connect(process.env.MONGO_URI).catch(err => {
+                console.error('❌ Reconnection failed:', err.message);
+            });
+        }, Math.min(1000 * Math.pow(2, connectionStats.disconnected), 30000));
     });
     
-    mongoose.connection.on('error', (err) => {
-        console.error('❌ MongoDB connection error:', err);
+    connection.on('error', (err) => {
+        connectionStats.errors++;
+        connectionStats.lastError = {
+            message: err.message,
+            timestamp: new Date().toISOString()
+        };
+        console.error('❌ MongoDB Error:', err.message);
+        
+        // 🔥 CRITICAL: Don't crash on connection errors
+        if (err.name === 'MongoNetworkError' || err.name === 'MongoTimeoutError') {
+            console.log('🔄 Network/Timeout error - attempting recovery...');
+        }
     });
+    
+    // 🔥 CRITICAL: Monitor connection pool health
+    setInterval(() => {
+        const db = connection.db;
+        if (db && db.serverConfig) {
+            const poolSize = db.serverConfig.connections ? db.serverConfig.connections.length : 0;
+            connectionStats.poolSize = poolSize;
+            
+            if (poolSize === 0) {
+                console.warn('⚠️ MongoDB connection pool is empty');
+            }
+        }
+    }, 30000); // Check every 30 seconds
+    
+    // 🔥 CRITICAL: Expose connection stats for health checks
+    connection.getStats = () => connectionStats;
     
     // Handle process termination
     process.on('SIGINT', async () => {

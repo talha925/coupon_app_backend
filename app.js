@@ -8,6 +8,7 @@ const errorHandler = require('./middlewares/errorHandler');
 const security = require('./middlewares/security');
 const requestLogger = require('./middlewares/requestLogger');
 const performanceMiddleware = require('./middlewares/performanceMiddleware');
+const { performanceMiddleware: performanceMonitoring } = require('./middleware/performanceMonitoring');
 const { createFirstSuperAdmin } = require('./middlewares/authMiddleware');
 const redisConfig = require('./config/redis');
 const cacheService = require('./services/cacheService');
@@ -32,6 +33,7 @@ const storeRoutes = require('./routes/storeRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const blogRoutes = require('./routes/blogRoutes');
 const blogCategoryRoutes = require('./routes/blogCategoryRoutes');
+const monitoringRoutes = require('./routes/monitoringRoutes');
 
 // Create Express app
 const app = express();
@@ -58,6 +60,7 @@ initializeServices();
 createFirstSuperAdmin();
 
 // Request Logging and Performance Monitoring
+app.use(performanceMonitoring); // 🚨 CRITICAL: Advanced performance monitoring
 app.use(performanceMiddleware.requestTimer);
 app.use(performanceMiddleware.performanceSummary);
 app.use(requestLogger);
@@ -92,6 +95,7 @@ app.use('/api/stores', storeRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/blogs', blogRoutes);
 app.use('/api/blogCategories', blogCategoryRoutes);
+app.use('/monitoring', monitoringRoutes);
 
 // Error handling middleware (must be after routes)
 app.use(errorHandler);
@@ -100,17 +104,68 @@ app.use(errorHandler);
 const PORT = config.port;
 const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running in ${config.nodeEnv} mode on port ${PORT}`);
+    
+    // Start monitoring services in production
+    if (config.nodeEnv === 'production') {
+        const healthCheckService = require('./services/healthCheckService');
+        const performanceReporter = require('./services/performanceReporter');
+        
+        // Start health checks and reporting
+        healthCheckService.start();
+        performanceReporter.scheduleDailyReports();
+        performanceReporter.scheduleWeeklyReports();
+        
+        console.log('📊 Production monitoring services started');
+    }
+});
+
+// 🔥 CRITICAL: Global error handlers to prevent crashes
+process.on('uncaughtException', (err) => {
+    console.error('💥 UNCAUGHT EXCEPTION! Shutting down...');
+    console.error('Error:', err.name, err.message);
+    console.error('Stack:', err.stack);
+    
+    // Close server gracefully
+    server.close(() => {
+        process.exit(1);
+    });
+    
+    // Force close after 10 seconds
+    setTimeout(() => {
+        console.error('⚠️ Forced shutdown after timeout');
+        process.exit(1);
+    }, 10000);
+});
+
+process.on('unhandledRejection', (err) => {
+    console.error('💥 UNHANDLED REJECTION! Shutting down...');
+    console.error('Error:', err);
+    
+    // Close server gracefully
+    server.close(() => {
+        process.exit(1);
+    });
+    
+    // Force close after 10 seconds
+    setTimeout(() => {
+        console.error('⚠️ Forced shutdown after timeout');
+        process.exit(1);
+    }, 10000);
 });
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
     console.log('🔄 SIGTERM received, shutting down gracefully...');
-    await redisConfig.disconnect();
-    process.exit(0);
+    server.close(async () => {
+        await redisConfig.disconnect();
+        process.exit(0);
+    });
 });
 
 process.on('SIGINT', async () => {
     console.log('🔄 SIGINT received, shutting down gracefully...');
-    await redisConfig.disconnect();
-    process.exit(0);
+    server.close(async () => {
+        await redisConfig.disconnect();
+        process.exit(0);
+    });
 });

@@ -1,0 +1,135 @@
+{
+  "timestamp": "2025-10-03T14:14:35.202Z",
+  "testSuite": "API Performance Test",
+  "summary": {
+    "totalTests": 3,
+    "passedTests": 2,
+    "failedTests": 1,
+    "averageResponseTime": 198,
+    "cacheHitRate": 0
+  },
+  "tests": [
+    {
+      "name": "Blog Categories API",
+      "url": "http://localhost:5000/api/blogCategories/",
+      "expectedMaxTime": 300,
+      "attempts": [
+        {
+          "attempt": 1,
+          "responseTime": 164,
+          "statusCode": 200,
+          "dataSize": 1009,
+          "cacheHit": false
+        },
+        {
+          "attempt": 2,
+          "responseTime": 146,
+          "statusCode": 200,
+          "dataSize": 1009,
+          "cacheHit": false
+        },
+        {
+          "attempt": 3,
+          "responseTime": 151,
+          "statusCode": 200,
+          "dataSize": 1009,
+          "cacheHit": false
+        }
+      ],
+      "averageTime": 154,
+      "status": "PASS",
+      "cacheStatus": "INACTIVE",
+      "cacheHitRate": 0,
+      "cacheImprovement": 13
+    },
+    {
+      "name": "Front Banner Blogs API",
+      "url": "http://localhost:5000/api/blogs?FrontBanner=true&limit=10",
+      "expectedMaxTime": 200,
+      "attempts": [
+        {
+          "attempt": 1,
+          "responseTime": 179,
+          "statusCode": 200,
+          "dataSize": 8301,
+          "cacheHit": false
+        },
+        {
+          "attempt": 2,
+          "responseTime": 174,
+          "statusCode": 200,
+          "dataSize": 8301,
+          "cacheHit": false
+        },
+        {
+          "attempt": 3,
+          "responseTime": 160,
+          "statusCode": 200,
+          "dataSize": 8301,
+          "cacheHit": false
+        }
+      ],
+      "averageTime": 171,
+      "status": "PASS",
+      "cacheStatus": "INACTIVE",
+      "cacheHitRate": 0,
+      "cacheImprovement": 19
+    },
+    {
+      "name": "Blog Listing API",
+      "url": "http://localhost:5000/api/blogs?limit=10",
+      "expectedMaxTime": 250,
+      "attempts": [
+        {
+          "attempt": 1,
+          "responseTime": 501,
+          "statusCode": 200,
+          "dataSize": 10418,
+          "cacheHit": false
+        },
+        {
+          "attempt": 2,
+          "responseTime": 152,
+          "statusCode": 200,
+          "dataSize": 10418,
+          "cacheHit": false
+        },
+        {
+          "attempt": 3,
+          "responseTime": 158,
+          "statusCode": 200,
+          "dataSize": 10418,
+          "cacheHit": false
+        }
+      ],
+      "averageTime": 270,
+      "status": "FAIL",
+      "cacheStatus": "INACTIVE",
+      "cacheHitRate": 0,
+      "cacheImprovement": 343
+    }
+  ],
+  "recommendations": [
+    {
+      "test": "Blog Listing API",
+      "issue": "Response time 270ms exceeds target 250ms",
+      "suggestion": [
+        "Verify pagination is working efficiently",
+        "Check if proper indexes are used for sorting",
+        "Ensure field selection is optimized",
+        "Consider implementing cursor-based pagination"
+      ],
+      "cacheStatus": "INACTIVE"
+    },
+    {
+      "type": "ACTION_REQUIRED",
+      "message": "Some API performance targets not met.",
+      "nextSteps": [
+        "Review failed tests and implement optimizations",
+        "Check database indexes and query execution plans",
+        "Verify cache service is working properly",
+        "Consider server resource scaling"
+      ]
+    }
+  ]
+}

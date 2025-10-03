@@ -2,6 +2,9 @@ const http = require('http');
 require('dotenv').config(); // ✅ Load environment variables first
 const redisConfig = require('../config/redis');
 const cacheService = require('../services/cacheService');
+const { getBaseURL } = require('../utils/configUtils');
+
+const BASE_URL = getBaseURL(5000);
 
 // Helper function to make HTTP requests
 function makeRequest(url) {
@@ -71,7 +74,7 @@ async function testCacheStatus() {
     // 3. Test API with Cache Headers
     console.log('\n3. Testing API Cache Behavior...');
     try {
-        const response = await makeRequest('http://localhost:5000/api/blogs?frontBanner=true&limit=5');
+        const response = await makeRequest(`${BASE_URL}/api/blogs?frontBanner=true&limit=5`);
         
         console.log('✅ API Response: Success');
         console.log('📊 Response Time:', response.headers['x-response-time'] || 'Not available');
@@ -80,7 +83,7 @@ async function testCacheStatus() {
         
         // Test second request to check caching
         console.log('\n4. Testing Cache Hit (Second Request)...');
-        const response2 = await makeRequest('http://localhost:5000/api/blogs?frontBanner=true&limit=5');
+        const response2 = await makeRequest(`${BASE_URL}/api/blogs?frontBanner=true&limit=5`);
         
         console.log('✅ Second API Response: Success');
         console.log('📊 Response Time:', response2.headers['x-response-time'] || 'Not available');
@@ -93,7 +96,7 @@ async function testCacheStatus() {
     // 4. Test Health Endpoint
     console.log('\n5. Testing Health Endpoint...');
     try {
-        const healthResponse = await makeRequest('http://localhost:5000/health');
+        const healthResponse = await makeRequest(`${BASE_URL}/health`);
         
         console.log('✅ Health Check: Success');
         console.log('🏥 System Status:', healthResponse.data.status);

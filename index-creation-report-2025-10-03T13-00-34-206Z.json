@@ -1,0 +1,165 @@
+{
+  "timestamp": "2025-10-03T13:00:34.207Z",
+  "summary": {
+    "indexesCreated": 7,
+    "indexesFailed": 9,
+    "totalCreationTime": 1736
+  },
+  "indexesCreated": [
+    {
+      "collection": "blogposts",
+      "index": {
+        "tags": 1,
+        "status": 1,
+        "publishDate": -1
+      },
+      "options": {
+        "name": "tags_status_publishdate_idx"
+      },
+      "creationTime": 269
+    },
+    {
+      "collection": "blogcategories",
+      "index": {
+        "name": 1
+      },
+      "options": {
+        "name": "name_idx"
+      },
+      "creationTime": 242
+    },
+    {
+      "collection": "coupons",
+      "index": {
+        "store.id": 1,
+        "status": 1,
+        "expiryDate": 1
+      },
+      "options": {
+        "name": "store_status_expiry_idx"
+      },
+      "creationTime": 246
+    },
+    {
+      "collection": "coupons",
+      "index": {
+        "category.id": 1,
+        "status": 1,
+        "expiryDate": 1
+      },
+      "options": {
+        "name": "category_status_expiry_idx"
+      },
+      "creationTime": 250
+    },
+    {
+      "collection": "coupons",
+      "index": {
+        "isFeatured": 1,
+        "status": 1,
+        "expiryDate": 1
+      },
+      "options": {
+        "name": "featured_status_expiry_idx"
+      },
+      "creationTime": 245
+    },
+    {
+      "collection": "stores",
+      "index": {
+        "name": 1
+      },
+      "options": {
+        "name": "name_idx"
+      },
+      "creationTime": 246
+    },
+    {
+      "collection": "stores",
+      "index": {
+        "category.id": 1,
+        "isActive": 1
+      },
+      "options": {
+        "name": "category_active_idx"
+      },
+      "creationTime": 238
+    }
+  ],
+  "indexesFailed": [
+    {
+      "collection": "blogposts",
+      "index": {
+        "FrontBanner": 1,
+        "status": 1,
+        "publishDate": -1
+      },
+      "error": "Index already exists with a different name: FrontBanner_1_status_1_publishDate_-1"
+    },
+    {
+      "collection": "blogposts",
+      "index": {
+        "isFeaturedForHome": 1,
+        "status": 1,
+        "publishDate": -1
+      },
+      "error": "Index already exists with a different name: isFeaturedForHome_1_status_1_publishDate_-1"
+    },
+    {
+      "collection": "blogposts",
+      "index": {
+        "category.id": 1,
+        "status": 1,
+        "publishDate": -1
+      },
+      "error": "Index already exists with a different name: category.id_1_status_1_publishDate_-1"
+    },
+    {
+      "collection": "blogposts",
+      "index": {
+        "store.id": 1,
+        "status": 1,
+        "publishDate": -1
+      },
+      "error": "Index already exists with a different name: store.id_1_status_1_publishDate_-1"
+    },
+    {
+      "collection": "blogposts",
+      "index": {
+        "status": 1,
+        "publishDate": -1
+      },
+      "error": "Index already exists with a different name: status_1_publishDate_-1"
+    },
+    {
+      "collection": "blogposts",
+      "index": {
+        "slug": 1
+      },
+      "error": "Index already exists with a different name: slug_1"
+    },
+    {
+      "collection": "blogposts",
+      "index": {
+        "title": "text",
+        "shortDescription": "text",
+        "tags": "text"
+      },
+      "error": "An equivalent index already exists with a different name and options. Requested index: { v: 2, key: { _fts: \"text\", _ftsx: 1 }, name: \"text_search_idx\", weights: { shortDescription: 1, tags: 1, title: 1 }, default_language: \"english\", language_override: \"language\", textIndexVersion: 3 }, existing index: { v: 2, key: { _fts: \"text\", _ftsx: 1 }, name: \"title_text_shortDescription_text\", background: true, weights: { shortDescription: 1, title: 1 }, default_language: \"english\", language_override: \"language\", textIndexVersion: 3 }"
+    },
+    {
+      "collection": "blogcategories",
+      "index": {
+        "slug": 1
+      },
+      "error": "Index already exists with a different name: slug_1"
+    },
+    {
+      "collection": "stores",
+      "index": {
+        "slug": 1
+      },
+      "error": "Index already exists with a different name: slug_1"
+    }
+  ]
+}

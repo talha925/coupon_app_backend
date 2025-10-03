@@ -13,13 +13,14 @@ class BlogCategoryService {
             return cachedCategories;
         }
 
-        // PERFORMANCE: Use lean() for better performance
+        // 🚨 CRITICAL OPTIMIZATION: Use lean() + select only needed fields
         const categories = await BlogCategory.find()
+            .select('name slug createdAt updatedAt') // Only select essential fields
             .sort({ name: 1 })
-            .lean();
+            .lean(); // Critical for performance - returns plain JS objects
         
-        // PERFORMANCE: Cache with 5-minute TTL (300 seconds) for consistency
-        await cacheService.set(cacheKey, categories, 300);
+        // PERFORMANCE: Cache with 10-minute TTL (600 seconds) - longer for categories
+        await cacheService.set(cacheKey, categories, 600);
         console.log('✅ Cache set: Blog categories');
         
         return categories;
@@ -35,13 +36,17 @@ class BlogCategoryService {
             return cachedCategory;
         }
 
-        const category = await BlogCategory.findById(id).lean();
+        // 🚨 CRITICAL OPTIMIZATION: Use lean() for better performance
+        const category = await BlogCategory.findById(id)
+            .select('name slug createdAt updatedAt') // Only essential fields
+            .lean();
+            
         if (!category) {
             throw new AppError('Blog category not found', 404);
         }
 
-        // PERFORMANCE: Cache individual category with 30-minute TTL
-        await cacheService.set(cacheKey, category, 1800);
+        // PERFORMANCE: Cache individual category with 1-hour TTL (3600 seconds)
+        await cacheService.set(cacheKey, category, 3600);
         console.log(`✅ Cache set: Blog category - ${id}`);
         
         return category;

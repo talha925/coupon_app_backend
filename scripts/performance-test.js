@@ -5,9 +5,10 @@
 
 const https = require('https');
 const http = require('http');
+const { getBaseURL } = require('../utils/configUtils');
 
 // Configuration
-const BASE_URL = 'http://localhost:5000';
+const BASE_URL = getBaseURL(5000);
 const TEST_ITERATIONS = 5;
 
 /**

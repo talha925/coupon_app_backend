@@ -5,8 +5,9 @@
 
 const http = require('http');
 const { URL } = require('url');
+const { buildApiURL, getBaseURL } = require('../utils/configUtils');
 
-const BASE_URL = 'http://localhost:5000/api';
+const BASE_URL = buildApiURL('', getBaseURL(5000));
 const TEST_ITERATIONS = 5;
 
 class PerformanceValidator {

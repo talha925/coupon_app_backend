@@ -1,0 +1,135 @@
+{
+  "timestamp": "2025-10-03T14:09:19.439Z",
+  "testSuite": "API Performance Test",
+  "summary": {
+    "totalTests": 3,
+    "passedTests": 2,
+    "failedTests": 1,
+    "averageResponseTime": 204,
+    "cacheHitRate": 0
+  },
+  "tests": [
+    {
+      "name": "Blog Categories API",
+      "url": "http://localhost:5000/api/blogCategories/",
+      "expectedMaxTime": 300,
+      "attempts": [
+        {
+          "attempt": 1,
+          "responseTime": 165,
+          "statusCode": 200,
+          "dataSize": 1009,
+          "cacheHit": false
+        },
+        {
+          "attempt": 2,
+          "responseTime": 162,
+          "statusCode": 200,
+          "dataSize": 1009,
+          "cacheHit": false
+        },
+        {
+          "attempt": 3,
+          "responseTime": 145,
+          "statusCode": 200,
+          "dataSize": 1009,
+          "cacheHit": false
+        }
+      ],
+      "averageTime": 157,
+      "status": "PASS",
+      "cacheStatus": "INACTIVE",
+      "cacheHitRate": 0,
+      "cacheImprovement": 20
+    },
+    {
+      "name": "Front Banner Blogs API",
+      "url": "http://localhost:5000/api/blogs?FrontBanner=true&limit=10",
+      "expectedMaxTime": 200,
+      "attempts": [
+        {
+          "attempt": 1,
+          "responseTime": 566,
+          "statusCode": 200,
+          "dataSize": 8301,
+          "cacheHit": false
+        },
+        {
+          "attempt": 2,
+          "responseTime": 152,
+          "statusCode": 200,
+          "dataSize": 8301,
+          "cacheHit": false
+        },
+        {
+          "attempt": 3,
+          "responseTime": 160,
+          "statusCode": 200,
+          "dataSize": 8301,
+          "cacheHit": false
+        }
+      ],
+      "averageTime": 293,
+      "status": "FAIL",
+      "cacheStatus": "INACTIVE",
+      "cacheHitRate": 0,
+      "cacheImprovement": 406
+    },
+    {
+      "name": "Blog Listing API",
+      "url": "http://localhost:5000/api/blogs?limit=10",
+      "expectedMaxTime": 250,
+      "attempts": [
+        {
+          "attempt": 1,
+          "responseTime": 158,
+          "statusCode": 200,
+          "dataSize": 10418,
+          "cacheHit": false
+        },
+        {
+          "attempt": 2,
+          "responseTime": 160,
+          "statusCode": 200,
+          "dataSize": 10418,
+          "cacheHit": false
+        },
+        {
+          "attempt": 3,
+          "responseTime": 164,
+          "statusCode": 200,
+          "dataSize": 10418,
+          "cacheHit": false
+        }
+      ],
+      "averageTime": 161,
+      "status": "PASS",
+      "cacheStatus": "INACTIVE",
+      "cacheHitRate": 0,
+      "cacheImprovement": -6
+    }
+  ],
+  "recommendations": [
+    {
+      "test": "Front Banner Blogs API",
+      "issue": "Response time 293ms exceeds target 200ms",
+      "suggestion": [
+        "Verify compound index on (FrontBanner, status, publishDate) is being used",
+        "Check if .lean() queries are working properly",
+        "Ensure cache TTL is optimized (15 minutes recommended)",
+        "Consider implementing pagination for better performance"
+      ],
+      "cacheStatus": "INACTIVE"
+    },
+    {
+      "type": "ACTION_REQUIRED",
+      "message": "Some API performance targets not met.",
+      "nextSteps": [
+        "Review failed tests and implement optimizations",
+        "Check database indexes and query execution plans",
+        "Verify cache service is working properly",
+        "Consider server resource scaling"
+      ]
+    }
+  ]
+}

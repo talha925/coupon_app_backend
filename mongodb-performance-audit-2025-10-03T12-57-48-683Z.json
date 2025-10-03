@@ -1,0 +1,61 @@
+{
+  "timestamp": "2025-10-03T12:57:48.685Z",
+  "summary": {
+    "totalSlowQueries": 1,
+    "averageQueryTime": 208.16666666666666,
+    "collectionsAnalyzed": 0
+  },
+  "slowQueries": [
+    {
+      "name": "Blog Categories (ALL)",
+      "executionTime": 683,
+      "totalDocsExamined": 5,
+      "indexesUsed": "name_1",
+      "stage": "FETCH",
+      "isSlowQuery": true
+    },
+    {
+      "name": "Blogs with FrontBanner=true",
+      "executionTime": 109,
+      "totalDocsExamined": 8,
+      "indexesUsed": "FrontBanner_1_publishDate_-1",
+      "stage": "FETCH",
+      "isSlowQuery": false
+    },
+    {
+      "name": "Published Blogs (Recent)",
+      "executionTime": 123,
+      "totalDocsExamined": 10,
+      "indexesUsed": "NONE",
+      "stage": "LIMIT",
+      "isSlowQuery": false
+    },
+    {
+      "name": "Blog by Category (No Index)",
+      "executionTime": 128,
+      "totalDocsExamined": 10,
+      "indexesUsed": "NONE",
+      "stage": "SORT",
+      "isSlowQuery": false
+    },
+    {
+      "name": "Featured Home Blogs",
+      "executionTime": 104,
+      "totalDocsExamined": 10,
+      "indexesUsed": "isFeaturedForHome_1_status_1_publishDate_-1",
+      "stage": "FETCH",
+      "isSlowQuery": false
+    },
+    {
+      "name": "Text Search (No Index)",
+      "executionTime": 102,
+      "totalDocsExamined": 0,
+      "indexesUsed": "NONE",
+      "stage": "TEXT_MATCH",
+      "isSlowQuery": false
+    }
+  ],
+  "indexAnalysis": {},
+  "recommendations": [],
+  "performanceMetrics": {}
+}

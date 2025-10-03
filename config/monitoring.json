@@ -1,0 +1,55 @@
+{
+  "performance": {
+    "apiResponseThresholds": {
+      "blogCategories": 300,
+      "frontBannerBlogs": 200,
+      "blogListing": 250,
+      "individualBlog": 500,
+      "relatedPosts": 300
+    },
+    "dbQueryThresholds": {
+      "blogCategories": 50,
+      "blogPosts": 100,
+      "relatedPosts": 150
+    },
+    "cacheTargets": {
+      "hitRate": 80,
+      "responseImprovement": 70
+    }
+  },
+  "alerts": {
+    "email": {
+      "enabled": false,
+      "recipients": [
+        "admin@example.com"
+      ],
+      "cooldownMinutes": 30
+    },
+    "slack": {
+      "enabled": false,
+      "webhook": "https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK",
+      "channel": "#alerts"
+    },
+    "console": {
+      "enabled": true,
+      "logLevel": "warn"
+    }
+  },
+  "healthChecks": {
+    "interval": 300000,
+    "endpoints": [
+      "/api/blogCategories/",
+      "/api/blogs?FrontBanner=true&limit=5",
+      "/api/blogs?limit=5"
+    ]
+  },
+  "reporting": {
+    "dailyReports": true,
+    "weeklyReports": true,
+    "performanceBaseline": {
+      "blogCategories": 10000,
+      "frontBannerBlogs": 9000,
+      "individualBlog": 4800
+    }
+  }
+}

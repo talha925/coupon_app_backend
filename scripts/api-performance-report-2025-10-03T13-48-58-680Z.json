@@ -1,0 +1,117 @@
+{
+  "timestamp": "2025-10-03T13:48:48.836Z",
+  "testSuite": "API Performance Test",
+  "summary": {
+    "totalTests": 3,
+    "passedTests": 1,
+    "failedTests": 2,
+    "averageResponseTime": 1143,
+    "cacheHitRate": 0
+  },
+  "tests": [
+    {
+      "name": "Blog Categories API",
+      "url": "http://localhost:3000/api/blogCategories/",
+      "expectedMaxTime": 300,
+      "attempts": [],
+      "averageTime": 0,
+      "status": "ERROR",
+      "cacheStatus": "unknown",
+      "error": "Request failed with status code 404"
+    },
+    {
+      "name": "Front Banner Blogs API",
+      "url": "http://localhost:3000/api/blogs?FrontBanner=true&limit=10",
+      "expectedMaxTime": 200,
+      "attempts": [
+        {
+          "attempt": 1,
+          "responseTime": 6549,
+          "statusCode": 200,
+          "dataSize": 10232,
+          "cacheHit": false
+        },
+        {
+          "attempt": 2,
+          "responseTime": 67,
+          "statusCode": 200,
+          "dataSize": 10232,
+          "cacheHit": false
+        },
+        {
+          "attempt": 3,
+          "responseTime": 60,
+          "statusCode": 200,
+          "dataSize": 10232,
+          "cacheHit": false
+        }
+      ],
+      "averageTime": 2225,
+      "status": "FAIL",
+      "cacheStatus": "INACTIVE",
+      "cacheHitRate": 0,
+      "cacheImprovement": 6489
+    },
+    {
+      "name": "Blog Listing API",
+      "url": "http://localhost:3000/api/blogs?limit=10",
+      "expectedMaxTime": 250,
+      "attempts": [
+        {
+          "attempt": 1,
+          "responseTime": 71,
+          "statusCode": 200,
+          "dataSize": 10232,
+          "cacheHit": false
+        },
+        {
+          "attempt": 2,
+          "responseTime": 57,
+          "statusCode": 200,
+          "dataSize": 10232,
+          "cacheHit": false
+        },
+        {
+          "attempt": 3,
+          "responseTime": 51,
+          "statusCode": 200,
+          "dataSize": 10232,
+          "cacheHit": false
+        }
+      ],
+      "averageTime": 60,
+      "status": "PASS",
+      "cacheStatus": "INACTIVE",
+      "cacheHitRate": 0,
+      "cacheImprovement": 20
+    }
+  ],
+  "recommendations": [
+    {
+      "test": "Blog Categories API",
+      "issue": "Test failed with error: Request failed with status code 404",
+      "suggestion": "Check server status and endpoint availability"
+    },
+    {
+      "test": "Front Banner Blogs API",
+      "issue": "Response time 2225ms exceeds target 200ms",
+      "suggestion": [
+        "Verify compound index on (FrontBanner, status, publishDate) is being used",
+        "Check if .lean() queries are working properly",
+        "Ensure cache TTL is optimized (15 minutes recommended)",
+        "Consider implementing pagination for better performance"
+      ],
+      "cacheStatus": "INACTIVE"
+    },
+    {
+      "type": "ACTION_REQUIRED",
+      "message": "Some API performance targets not met.",
+      "nextSteps": [
+        "Review failed tests and implement optimizations",
+        "Check database indexes and query execution plans",
+        "Verify cache service is working properly",
+        "Consider server resource scaling"
+      ]
+    }
+  ]
+}

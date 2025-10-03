@@ -1,4 +1,5 @@
 const redisConfig = require('../config/redis');
+const { trackCache } = require('../middleware/performanceMonitoring');
 
 /**
  * Cache Service with TTL Management
@@ -109,11 +110,17 @@ class CacheService {
         await this.ensureInitialized();
         
         if (!this.isAvailable()) {
+            trackCache('GET', key, false); // Track as miss when cache unavailable
             return null;
         }
 
         try {
             const data = await this.redis.get(key);
+            const hit = data !== null;
+            
+            // 🚨 CRITICAL: Track cache performance
+            trackCache('GET', key, hit);
+            
             if (data) {
                 console.log(`✅ Cache HIT: ${key}`);
                 return JSON.parse(data);
@@ -122,6 +129,7 @@ class CacheService {
             return null;
         } catch (error) {
             console.error('❌ Cache get error:', error);
+            trackCache('GET', key, false); // Track as miss on error
             return null;
         }
     }
@@ -133,6 +141,7 @@ class CacheService {
         await this.ensureInitialized();
         
         if (!this.isAvailable()) {
+            trackCache('SET', key, false); // Track failed set
             return false;
         }
 
@@ -145,10 +154,14 @@ class CacheService {
                 await this.redis.set(key, serializedData);
             }
             
+            // 🚨 PERFORMANCE: Track cache set operations
+            trackCache('SET', key, true);
+            
             console.log(`✅ Cache SET: ${key} (TTL: ${ttl || 'none'})`);
             return true;
         } catch (error) {
             console.error('❌ Cache set error:', error);
+            trackCache('SET', key, false); // Track failed set on error
             return false;
         }
     }
@@ -184,9 +197,34 @@ class CacheService {
         }
 
         try {
-            const keys = await this.redis.keys(pattern);
+            // 🔥 CRITICAL: Use SCAN instead of KEYS to prevent blocking
+            // KEYS command can block Redis for large datasets
+            const keys = [];
+            let cursor = 0;
+            
+            do {
+                const result = await this.redis.scan(cursor, {
+                    MATCH: pattern,
+                    COUNT: 100 // Process in batches to prevent memory issues
+                });
+                
+                cursor = result.cursor;
+                keys.push(...result.keys);
+                
+                // 🔥 CRITICAL: Prevent infinite loops
+                if (keys.length > 10000) {
+                    console.warn(`⚠️ Cache pattern scan limit reached for: ${pattern}`);
+                    break;
+                }
+            } while (cursor !== 0);
+            
             if (keys.length > 0) {
-                await this.redis.del(keys);
+                // 🔥 CRITICAL: Delete in batches to prevent memory spikes
+                const batchSize = 100;
+                for (let i = 0; i < keys.length; i += batchSize) {
+                    const batch = keys.slice(i, i + batchSize);
+                    await this.redis.del(batch);
+                }
                 console.log(`✅ Cache DEL PATTERN: ${pattern} (${keys.length} keys)`);
             }
             return true;

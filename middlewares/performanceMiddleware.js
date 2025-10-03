@@ -4,60 +4,35 @@
  */
 
 const mongoose = require('mongoose');
+const { PERFORMANCE } = require('../config/constants');
 
-// Configuration
-const SLOW_QUERY_THRESHOLD = 100; // milliseconds
-const SLOW_REQUEST_THRESHOLD = 1000; // milliseconds
+// Configuration using constants
+const SLOW_QUERY_THRESHOLD = PERFORMANCE.DB_QUERY_TIME_THRESHOLD;
+const SLOW_REQUEST_THRESHOLD = PERFORMANCE.SLOW_REQUEST_THRESHOLD;
 
 /**
- * Request timing middleware
- * Measures total request time and logs slow requests
+ * Request timer middleware
  */
 const requestTimer = (req, res, next) => {
-    const startTime = Date.now();
+    req.startTime = Date.now();
     
-    // Add timing info to request
-    req.startTime = startTime;
-    req.timing = {
-        start: startTime,
-        database: 0,
-        cache: 0,
-        processing: 0
-    };
-    
-    // Override res.end to capture response time
+    // 🔥 CRITICAL: Prevent memory leaks from response listeners
     const originalEnd = res.end;
+    let hasEnded = false;
+    
     res.end = function(...args) {
-        const endTime = Date.now();
-        const totalTime = endTime - startTime;
+        // 🔥 CRITICAL: Prevent multiple end calls
+        if (hasEnded) return;
+        hasEnded = true;
         
-        // Add response headers
-        res.set('X-Response-Time', `${totalTime}ms`);
-        res.set('X-Request-ID', req.id || 'unknown');
+        const duration = Date.now() - req.startTime;
         
-        // Log performance metrics
-        const logData = {
-            method: req.method,
-            url: req.originalUrl,
-            statusCode: res.statusCode,
-            responseTime: totalTime,
-            userAgent: req.get('User-Agent'),
-            ip: req.ip,
-            timestamp: new Date().toISOString()
-        };
-        
-        // Log slow requests
-        if (totalTime > SLOW_REQUEST_THRESHOLD) {
-            console.warn('🐌 SLOW REQUEST:', JSON.stringify({
-                ...logData,
-                timing: req.timing,
-                warning: 'Request exceeded slow threshold'
-            }, null, 2));
-        } else {
-            console.log(`✅ ${req.method} ${req.originalUrl} - ${totalTime}ms - ${res.statusCode}`);
+        // Log slow requests for monitoring
+        if (duration > 1000) {
+            console.warn(`⚠️ Slow request: ${req.method} ${req.path} - ${duration}ms`);
         }
         
-        // Call original end
+        // Call original end method
         originalEnd.apply(this, args);
     };
     
@@ -141,31 +116,45 @@ const trackDatabaseOperation = (req, operation, startTime) => {
  * Provides detailed performance breakdown
  */
 const performanceSummary = (req, res, next) => {
+    // Initialize timing object if not exists
+    if (!req.timing) {
+        req.timing = {
+            start: req.startTime || Date.now(),
+            database: 0,
+            cache: 0,
+            processing: 0
+        };
+    }
+    
     // Add performance tracking methods to request
     req.trackCache = (operation, startTime) => trackCacheOperation(req, operation, startTime);
     req.trackDatabase = (operation, startTime) => trackDatabaseOperation(req, operation, startTime);
     
-    // Add performance summary to response
-    const originalJson = res.json;
-    res.json = function(data) {
-        const totalTime = Date.now() - req.startTime;
-        req.timing.processing = totalTime - req.timing.database - req.timing.cache;
+    // 🔥 CRITICAL: Prevent memory leaks from JSON override
+    if (!res._jsonOverridden) {
+        res._jsonOverridden = true;
+        const originalJson = res.json;
         
-        // Add performance data to response (in development)
-        if (process.env.NODE_ENV === 'development') {
-            data._performance = {
-                totalTime: `${totalTime}ms`,
-                breakdown: {
-                    database: `${req.timing.database}ms`,
-                    cache: `${req.timing.cache}ms`,
-                    processing: `${req.timing.processing}ms`
-                },
-                timestamp: new Date().toISOString()
-            };
-        }
-        
-        originalJson.call(this, data);
-    };
+        res.json = function(data) {
+            const totalTime = Date.now() - (req.startTime || req.timing.start);
+            req.timing.processing = totalTime - req.timing.database - req.timing.cache;
+            
+            // Add performance data to response (in development)
+            if (process.env.NODE_ENV === 'development') {
+                data._performance = {
+                    totalTime: `${totalTime}ms`,
+                    breakdown: {
+                        database: `${req.timing.database}ms`,
+                        cache: `${req.timing.cache}ms`,
+                        processing: `${req.timing.processing}ms`
+                    },
+                    timestamp: new Date().toISOString()
+                };
+            }
+            
+            originalJson.call(this, data);
+        };
+    }
     
     next();
 };

@@ -23,7 +23,7 @@ class RedisConfig {
                 database: process.env.REDIS_DB || 0
             };
 
-            // Add socket configuration
+            // Add socket configuration with better error handling
             options.socket = {
                 connectTimeout: 5000,
                 commandTimeout: 3000,
@@ -36,7 +36,10 @@ class RedisConfig {
             // Create Redis client
             this.client = redis.createClient(options);
 
-            // Event handlers
+            // 🔥 CRITICAL: Prevent memory leaks from event listeners
+            this.client.setMaxListeners(10);
+
+            // Event handlers with proper error boundaries
             this.client.on('connect', () => {
                 console.log('🔗 Redis connecting...');
             });
@@ -47,15 +50,23 @@ class RedisConfig {
             });
 
             this.client.on('error', (err) => {
-                // Only log once, don't spam
+                // Only log once, don't spam - prevent memory leaks from repeated logging
                 if (this.isConnected) {
                     console.log('⚠️ Redis connection lost - Running without cache');
                 }
                 this.isConnected = false;
+                
+                // 🔥 CRITICAL: Don't let Redis errors crash the process
+                // Errors are handled gracefully by setting isConnected = false
             });
 
             this.client.on('end', () => {
                 this.isConnected = false;
+            });
+
+            // 🔥 CRITICAL: Add reconnecting event handler
+            this.client.on('reconnecting', () => {
+                console.log('🔄 Redis reconnecting...');
             });
 
             // Try to connect with a short timeout
@@ -70,6 +81,9 @@ class RedisConfig {
             console.log('⚠️ Redis not available - Application will run without caching');
             this.isConnected = false;
             this.client = null;
+            
+            // 🔥 CRITICAL: Don't throw errors that could crash the process
+            // Return gracefully and let the application continue without cache
         }
     }
 
