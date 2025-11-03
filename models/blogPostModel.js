@@ -79,8 +79,8 @@ const blogPostSchema = new mongoose.Schema({
   },  slug: {
     type: String,
     unique: true,
-    lowercase: true,
-    index: true
+    lowercase: true
+    // Removed duplicate index: true to fix warning
   },
   shortDescription: {
     type: String,
@@ -130,7 +130,7 @@ blogPostSchema.index({ 'store.id': 1, status: 1, publishDate: -1 }); // Store fi
 
 // Additional performance indexes
 blogPostSchema.index({ tags: 1, status: 1 }); // Tag filtering with status
-blogPostSchema.index({ slug: 1 }); // Unique slug lookup (already exists via unique: true)
+// Removed duplicate slug index - already defined via unique: true in schema
 blogPostSchema.index({ createdAt: -1 }); // Recent posts sorting
 blogPostSchema.index({ lastUpdated: -1 }); // Recently updated posts
 
