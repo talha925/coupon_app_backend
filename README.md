@@ -11,6 +11,8 @@ This API provides a comprehensive backend solution for coupon and store manageme
 - **Complete Store Management**: Create, read, update, and delete stores
 - **Coupon Management**: Track coupon usage, validate codes, and manage offers
 - **Category Organization**: Organize stores by categories
+- **Real-time Notifications**: WebSocket-powered real-time updates for stores and coupons
+- **Redis Pub/Sub Integration**: Cross-instance communication for scalable real-time features
 - **Secure Authentication**: JWT-based authentication with role management
 - **Admin Panel**: Admin-only routes with role-based access control
 - **Advanced Searching**: Full-text search across store names and descriptions
@@ -20,6 +22,7 @@ This API provides a comprehensive backend solution for coupon and store manageme
 - **Security**: Protection against common web vulnerabilities
 - **Password Management**: Secure password reset and update flows
 - **Optimized Database Queries**: Efficient MongoDB queries with proper indexing
+- **Performance Monitoring**: Built-in performance tracking and health checks
 
 ## 🔧 Technologies
 
@@ -32,6 +35,9 @@ This API provides a comprehensive backend solution for coupon and store manageme
 - **Joi** - Data validation
 - **Helmet** - Security middleware
 - **AWS SDK** - File uploads to S3 (for store images)
+- **WebSocket (ws)** - Real-time bidirectional communication
+- **Redis** - In-memory data store for caching and pub/sub messaging
+- **ioredis** - Redis client for Node.js
 
 ## 📁 Project Structure
 
@@ -45,6 +51,9 @@ This API provides a comprehensive backend solution for coupon and store manageme
 │   ├── couponController.js
 │   ├── categoryController.js
 │   └── authController.js  # Authentication controller
+├── lib/                  # Core libraries
+│   ├── websocket-server.js # WebSocket server implementation
+│   └── redis-client.js   # Redis client configuration
 ├── models/               # Database models
 │   ├── storeModel.js
 │   ├── couponModel.js
@@ -53,7 +62,8 @@ This API provides a comprehensive backend solution for coupon and store manageme
 ├── services/             # Business logic
 │   ├── storeService.js
 │   ├── couponService.js
-│   └── categoryService.js
+│   ├── categoryService.js
+│   └── cacheService.js   # Redis caching service
 ├── validators/           # Request validation schemas
 │   ├── storeValidator.js
 │   ├── couponValidator.js
@@ -68,6 +78,7 @@ This API provides a comprehensive backend solution for coupon and store manageme
 │   └── AppError.js
 ├── utils/                # Utility functions
 │   └── couponUtils.js
+├── websocket-client-test.js # WebSocket testing client
 └── routes/               # API routes
     ├── storeRoutes.js
     ├── couponRoutes.js
@@ -136,6 +147,7 @@ This API provides a comprehensive backend solution for coupon and store manageme
 
 - Node.js 14+
 - MongoDB 4.4+
+- Redis 6.0+ (for caching and real-time features)
 - AWS account (for file uploads)
 
 ### Installation
@@ -169,6 +181,13 @@ This API provides a comprehensive backend solution for coupon and store manageme
    AWS_SECRET_ACCESS_KEY=your_aws_secret_key
    AWS_REGION=your_aws_region
    AWS_BUCKET_NAME=your_s3_bucket_name
+
+   # Redis Configuration (for caching and pub/sub)
+   REDIS_URL=redis://localhost:6379
+
+   # WebSocket Configuration
+   WS_ENABLED=true
+   WS_PORT=8080
    ```
 
 4. Start the server
@@ -220,6 +239,69 @@ The application uses the following MongoDB indexes for optimal performance:
 - Text indexes on store names, slugs, and descriptions for full-text search
 - Compound indexes for common query patterns
 - Regular indexes for frequently filtered fields
+
+## 🔌 WebSocket Real-time Features
+
+The API includes WebSocket support for real-time notifications and updates.
+
+### WebSocket Server
+
+The WebSocket server runs on a separate port (default: 8080) and provides real-time updates for:
+
+- **Store Updates**: Real-time notifications when stores are created, updated, or deleted
+- **Coupon Updates**: Real-time notifications when coupons are created, updated, or deleted
+- **Cross-instance Communication**: Redis pub/sub for scalable real-time features
+
+### WebSocket Events
+
+#### Store Events
+- `store:created` - Emitted when a new store is created
+- `store:updated` - Emitted when a store is updated
+- `store:deleted` - Emitted when a store is deleted
+
+#### Coupon Events
+- `coupon:created` - Emitted when a new coupon is created
+- `coupon:updated` - Emitted when a coupon is updated
+- `coupon:deleted` - Emitted when a coupon is deleted
+
+### Client Connection
+
+Connect to the WebSocket server:
+
+```javascript
+const WebSocket = require('ws');
+const ws = new WebSocket('ws://localhost:8080');
+
+ws.on('open', () => {
+  console.log('Connected to WebSocket server');
+});
+
+ws.on('message', (data) => {
+  const message = JSON.parse(data);
+  console.log('Received:', message);
+  
+  // Handle different event types
+  switch(message.type) {
+    case 'store:created':
+      console.log('New store created:', message.data);
+      break;
+    case 'coupon:updated':
+      console.log('Coupon updated:', message.data);
+      break;
+    // ... handle other events
+  }
+});
+```
+
+### Testing WebSocket
+
+Use the included test client to verify WebSocket functionality:
+
+```bash
+node websocket-client-test.js
+```
+
+This will connect to the WebSocket server and demonstrate real-time notifications by creating, updating, and deleting test stores and coupons.
 
 ## 🔒 Security Features
 

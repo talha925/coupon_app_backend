@@ -5,12 +5,15 @@ const mongoOptions = {
   maxPoolSize: 10,
   minPoolSize: 2,
   socketTimeoutMS: 45000,
-  serverSelectionTimeoutMS: 5000,
-  connectTimeoutMS: 10000,
+  serverSelectionTimeoutMS: 30000, // Increased from 5000ms
+  connectTimeoutMS: 30000, // Increased from 10000ms
   family: 4,
   retryWrites: true,
   retryReads: true,
-  writeConcern: { w: 'majority' }
+  writeConcern: { w: 'majority' },
+  // Add DNS resolution options
+  useNewUrlParser: true,
+  useUnifiedTopology: true
 };
 
 /**

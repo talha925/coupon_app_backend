@@ -32,26 +32,6 @@ const htmlDecode = (str) => {
       next(error);
     }
   };
-  
-
-
-
-// Fetch all stores
-exports.getStores = async (req, res, next) => {
-    try {
-        const result = await storeService.getStores(req.query);
-        res.status(200).json({
-            status: 'success',
-            data: result.stores,
-            metadata: {
-                totalStores: result.totalStores,
-                timestamp: new Date().toISOString()
-            }
-        });
-    } catch (error) {
-        next(new AppError(error.message || 'Error fetching stores', error.statusCode || 500));
-    }
-};
 
 
 // Fetch a store by slug
@@ -151,3 +131,5 @@ exports.deleteStore = async (req, res, next) => {
         next(new AppError(error.message || 'Error deleting store', error.statusCode || 500));
     }
 };
+
+// Note: Manual cache invalidation controller removed - now handled automatically via WebSocket notifications

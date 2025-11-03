@@ -123,8 +123,7 @@ class BlogCategoryService {
         try {
             await Promise.all([
                 cacheService.delPattern('blog_categories:*'),
-                cacheService.delPattern('blog_category:*'),
-                cacheService.invalidateCategoryCaches() // Legacy method for compatibility
+                cacheService.delPattern('blog_category:*')
             ]);
             console.log('✅ All category caches invalidated');
         } catch (error) {

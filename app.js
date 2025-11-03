@@ -12,6 +12,7 @@ const { performanceMiddleware: performanceMonitoring } = require('./middleware/p
 const { createFirstSuperAdmin } = require('./middlewares/authMiddleware');
 const redisConfig = require('./config/redis');
 const cacheService = require('./services/cacheService');
+const { initializeWebSocketServer, shutdownWebSocketServer } = require('./lib/websocket-server');
 
 // Load environment variables
 dotenv.config();
@@ -102,8 +103,21 @@ app.use(errorHandler);
 
 // Start the server
 const PORT = config.port;
-const server = app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', async () => {
     console.log(`🚀 Server running in ${config.nodeEnv} mode on port ${PORT}`);
+    
+    // 🔌 Initialize WebSocket server if enabled
+    if (process.env.WS_ENABLED === 'true') {
+        try {
+            await initializeWebSocketServer(server);
+            console.log('🌐 WebSocket server initialized successfully');
+        } catch (wsError) {
+            console.error('⚠️ WebSocket server initialization failed:', wsError.message);
+            // Don't crash the main server if WebSocket fails
+        }
+    } else {
+        console.log('📡 WebSocket server disabled (WS_ENABLED=false)');
+    }
     
     // Start monitoring services in production
     if (config.nodeEnv === 'production') {
@@ -157,6 +171,15 @@ process.on('unhandledRejection', (err) => {
 process.on('SIGTERM', async () => {
     console.log('🔄 SIGTERM received, shutting down gracefully...');
     server.close(async () => {
+        // Shutdown WebSocket server if enabled
+        if (process.env.WS_ENABLED === 'true') {
+            try {
+                await shutdownWebSocketServer();
+                console.log('🌐 WebSocket server shut down successfully');
+            } catch (wsError) {
+                console.error('⚠️ WebSocket server shutdown error:', wsError.message);
+            }
+        }
         await redisConfig.disconnect();
         process.exit(0);
     });
@@ -165,6 +188,15 @@ process.on('SIGTERM', async () => {
 process.on('SIGINT', async () => {
     console.log('🔄 SIGINT received, shutting down gracefully...');
     server.close(async () => {
+        // Shutdown WebSocket server if enabled
+        if (process.env.WS_ENABLED === 'true') {
+            try {
+                await shutdownWebSocketServer();
+                console.log('🌐 WebSocket server shut down successfully');
+            } catch (wsError) {
+                console.error('⚠️ WebSocket server shutdown error:', wsError.message);
+            }
+        }
         await redisConfig.disconnect();
         process.exit(0);
     });

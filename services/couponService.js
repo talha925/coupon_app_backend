@@ -3,6 +3,109 @@ const Coupon = require('../models/couponModel');
 const Store = require('../models/storeModel');
 const AppError = require('../errors/AppError');
 const { formatCoupon } = require('../utils/couponUtils');
+const { getWebSocketServer } = require('../lib/websocket-server');
+const cacheService = require('./cacheService');
+
+// Circuit breaker for external dependencies
+const circuitBreaker = {
+    websocket: {
+        failures: 0,
+        lastFailure: 0,
+        isOpen: false,
+        threshold: 5,
+        timeout: 30000 // 30 seconds
+    },
+    cache: {
+        failures: 0,
+        lastFailure: 0,
+        isOpen: false,
+        threshold: 3,
+        timeout: 15000 // 15 seconds
+    }
+};
+
+/**
+ * Execute operation with circuit breaker protection
+ */
+const callWithCircuitBreaker = async (service, operation, fallback = null) => {
+    const breaker = circuitBreaker[service];
+    
+    // Check if circuit breaker is open
+    if (breaker.isOpen) {
+        if (Date.now() - breaker.lastFailure < breaker.timeout) {
+            console.warn(`⚠️ Circuit breaker OPEN for ${service}, using fallback`);
+            return fallback ? await fallback() : { success: false, circuitBreakerOpen: true };
+        } else {
+            // Reset circuit breaker after timeout
+            breaker.isOpen = false;
+            breaker.failures = 0;
+            console.log(`🔄 Circuit breaker RESET for ${service}`);
+        }
+    }
+    
+    try {
+        const result = await operation();
+        // Reset failure count on success
+        breaker.failures = 0;
+        return result;
+    } catch (error) {
+        breaker.failures++;
+        breaker.lastFailure = Date.now();
+        
+        if (breaker.failures >= breaker.threshold) {
+            breaker.isOpen = true;
+            console.error(`🚨 Circuit breaker OPENED for ${service} after ${breaker.failures} failures`);
+        }
+        
+        console.error(`❌ ${service} operation failed:`, error.message);
+        
+        if (fallback) {
+            return await fallback();
+        }
+        throw error;
+    }
+};
+
+/**
+ * Call frontend revalidation endpoint to refresh Next.js cache
+ */
+const callFrontendRevalidation = async (type, identifier, metadata = {}) => {
+    try {
+        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+        const revalidationEndpoint = `${frontendUrl}/api/revalidate`;
+        
+        const payload = {
+            type,
+            identifier,
+            timestamp: new Date().toISOString(),
+            ...metadata
+        };
+
+        console.log(`🔄 Calling frontend revalidation: ${type}:${identifier}`);
+        
+        const response = await fetch(revalidationEndpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${process.env.REVALIDATION_SECRET || 'default-secret'}`
+            },
+            body: JSON.stringify(payload),
+            timeout: 5000 // 5 second timeout
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            console.log(`✅ Frontend revalidation successful: ${type}:${identifier}`, result);
+            return { success: true, result };
+        } else {
+            console.warn(`⚠️ Frontend revalidation failed: ${response.status} ${response.statusText}`);
+            return { success: false, error: `HTTP ${response.status}` };
+        }
+    } catch (error) {
+        console.error(`❌ Frontend revalidation error for ${type}:${identifier}:`, error.message);
+        return { success: false, error: error.message };
+    }
+};
 
 // Get all coupons for a specific store with pagination (20 coupons per page)
 exports.getCouponsByStore = async (queryParams, storeId) => {
@@ -98,6 +201,20 @@ exports.createCoupon = async (couponData) => {
       $push: { coupons: newCoupon._id },
     });
 
+    // 🚀 WebSocket: Notify real-time coupon creation
+    try {
+      const wsServer = getWebSocketServer();
+      await wsServer.notifyCouponUpdate(newCoupon._id.toString(), 'created', {
+        title: newCoupon.title,
+        storeId: newCoupon.store.toString(),
+        type: newCoupon.type,
+        active: newCoupon.active
+      });
+    } catch (wsError) {
+      console.error('⚠️ WebSocket notification failed (coupon creation):', wsError.message);
+      // Don't throw - WebSocket errors shouldn't break coupon creation
+    }
+
     return newCoupon;
   } catch (error) {
     console.error('Error in couponService.createCoupon:', error);
@@ -108,6 +225,8 @@ exports.createCoupon = async (couponData) => {
 // Update a coupon
 exports.updateCoupon = async (id, updateData) => {
   try {
+    console.log(`🔄 Starting ATOMIC coupon update for: ${id}`);
+
     if (typeof updateData.active !== 'undefined' && updateData.active === false) {
       throw new AppError("Cannot update inactive coupon", 400);
     }
@@ -116,9 +235,14 @@ exports.updateCoupon = async (id, updateData) => {
       throw new AppError("Invalid expiration date format", 400);
     }
 
+    // ✅ STEP 1: DATABASE UPDATE
+    console.log('💾 Step 1: Performing database update...');
     const updatedCoupon = await Coupon.findByIdAndUpdate(
       id,
-      updateData,
+      {
+        ...updateData,
+        updatedAt: new Date()
+      },
       { new: true, runValidators: true }
     );
 
@@ -126,9 +250,84 @@ exports.updateCoupon = async (id, updateData) => {
       throw new AppError('Coupon not found', 404);
     }
 
-    return formatCoupon(updatedCoupon);
+    console.log('✅ Database update completed');
+
+    // ✅ STEP 2: CLEAR REDIS CACHE
+    console.log('🗑️ Step 2: Clearing Redis cache...');
+    const cacheResult = await callWithCircuitBreaker(
+      'cache',
+      async () => {
+        // Clear coupon-specific caches
+        await cacheService.invalidateCouponCache(id);
+        
+        // Clear store-related coupon caches
+        const storeId = updatedCoupon.store.toString();
+        const patterns = [
+          `coupon:${id}`,
+          `store:${storeId}:coupons`,
+          'coupons:*' // Clear all coupon list caches
+        ];
+        
+        let totalDeleted = 0;
+        for (const pattern of patterns) {
+          const deleted = await cacheService.delPattern(pattern);
+          totalDeleted += deleted;
+        }
+        
+        console.log(`✅ Cache cleared: ${totalDeleted} keys deleted`);
+        return { success: true, totalDeleted };
+      },
+      async () => {
+        console.warn('⚠️ Cache circuit breaker open, skipping cache invalidation');
+        return { success: false, fallback: true };
+      }
+    );
+
+    // ✅ STEP 3: TRIGGER WEBSOCKET NOTIFICATION
+    console.log('📡 Step 3: Triggering WebSocket notification...');
+    const wsResult = await callWithCircuitBreaker(
+      'websocket',
+      async () => {
+        const wsServer = getWebSocketServer();
+        return await wsServer.notifyCouponUpdate(updatedCoupon._id.toString(), 'updated', {
+          title: updatedCoupon.title,
+          storeId: updatedCoupon.store.toString(),
+          type: updatedCoupon.type,
+          active: updatedCoupon.active,
+          updatedFields: Object.keys(updateData),
+          timestamp: new Date().toISOString()
+        });
+      },
+      async () => {
+        console.warn('⚠️ WebSocket circuit breaker open, skipping notification');
+        return { success: false, fallback: true };
+      }
+    );
+
+    // ✅ STEP 4: CALL FRONTEND REVALIDATION
+    console.log('🔄 Step 4: Calling frontend revalidation...');
+    const revalidationResult = await callFrontendRevalidation('coupon', id, {
+      couponTitle: updatedCoupon.title,
+      storeId: updatedCoupon.store.toString(),
+      updatedFields: Object.keys(updateData)
+    });
+
+    console.log(`✅ ATOMIC coupon update completed successfully for: ${id}`);
+
+    return {
+      coupon: formatCoupon(updatedCoupon),
+      atomicUpdateResults: {
+        database: { success: true },
+        cache: cacheResult,
+        websocket: wsResult,
+        revalidation: revalidationResult,
+        fieldsUpdated: Object.keys(updateData),
+        timestamp: new Date().toISOString()
+      }
+    };
+
   } catch (error) {
-    console.error('Error in couponService.updateCoupon:', error);
+    console.error(`❌ ATOMIC coupon update failed for ${id}:`, error);
     throw error;
   }
 };
@@ -136,20 +335,93 @@ exports.updateCoupon = async (id, updateData) => {
 // Delete a coupon
 exports.deleteCoupon = async (id) => {
   try {
+    console.log(`🔄 Starting ATOMIC coupon deletion for: ${id}`);
+
+    // ✅ STEP 1: DATABASE DELETE
+    console.log('💾 Step 1: Performing database deletion...');
     const deletedCoupon = await Coupon.findByIdAndDelete(id);
 
     if (!deletedCoupon) {
       throw new AppError('Coupon not found', 404);
     }
 
+    // Remove from store's coupons array
     await Store.findByIdAndUpdate(
       deletedCoupon.store,
       { $pull: { coupons: deletedCoupon._id } }
     );
 
-    return deletedCoupon;
+    console.log('✅ Database deletion completed');
+
+    // ✅ STEP 2: CLEAR REDIS CACHE
+    console.log('🗑️ Step 2: Clearing Redis cache...');
+    const cacheResult = await callWithCircuitBreaker(
+      'cache',
+      async () => {
+        const storeId = deletedCoupon.store.toString();
+        const patterns = [
+          `coupon:${id}`,
+          `store:${storeId}:coupons`,
+          'coupons:*'
+        ];
+        
+        let totalDeleted = 0;
+        for (const pattern of patterns) {
+          const deleted = await cacheService.delPattern(pattern);
+          totalDeleted += deleted;
+        }
+        
+        console.log(`✅ Cache cleared: ${totalDeleted} keys deleted`);
+        return { success: true, totalDeleted };
+      },
+      async () => {
+        console.warn('⚠️ Cache circuit breaker open, skipping cache invalidation');
+        return { success: false, fallback: true };
+      }
+    );
+
+    // ✅ STEP 3: TRIGGER WEBSOCKET NOTIFICATION
+    console.log('📡 Step 3: Triggering WebSocket notification...');
+    const wsResult = await callWithCircuitBreaker(
+      'websocket',
+      async () => {
+        const wsServer = getWebSocketServer();
+        return await wsServer.notifyCouponUpdate(deletedCoupon._id.toString(), 'deleted', {
+          title: deletedCoupon.title,
+          storeId: deletedCoupon.store.toString(),
+          type: deletedCoupon.type,
+          timestamp: new Date().toISOString()
+        });
+      },
+      async () => {
+        console.warn('⚠️ WebSocket circuit breaker open, skipping notification');
+        return { success: false, fallback: true };
+      }
+    );
+
+    // ✅ STEP 4: CALL FRONTEND REVALIDATION
+    console.log('🔄 Step 4: Calling frontend revalidation...');
+    const revalidationResult = await callFrontendRevalidation('coupon', id, {
+      action: 'deleted',
+      couponTitle: deletedCoupon.title,
+      storeId: deletedCoupon.store.toString()
+    });
+
+    console.log(`✅ ATOMIC coupon deletion completed successfully for: ${id}`);
+
+    return {
+      coupon: deletedCoupon,
+      atomicUpdateResults: {
+        database: { success: true },
+        cache: cacheResult,
+        websocket: wsResult,
+        revalidation: revalidationResult,
+        timestamp: new Date().toISOString()
+      }
+    };
+
   } catch (error) {
-    console.error('Error in couponService.deleteCoupon:', error);
+    console.error(`❌ ATOMIC coupon deletion failed for ${id}:`, error);
     throw error;
   }
 };

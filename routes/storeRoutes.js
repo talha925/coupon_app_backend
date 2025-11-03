@@ -26,4 +26,6 @@ router.put('/:id', validator(updateStoreSchema), storeController.updateStore);
 // Delete store by id
 router.delete('/:id', storeController.deleteStore);
 
+// Note: Manual cache invalidation removed - now handled automatically via WebSocket notifications
+
 module.exports = router;
