@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const AppError = require('../errors/AppError');
 const cacheService = require('./cacheService');
 const { getWebSocketServer } = require('../lib/websocket-server');
+const axios = require('axios');
 
 // Removed legacy in-memory locks - now using atomic updates with Redis
 
@@ -13,14 +14,30 @@ const circuitBreaker = {
         lastFailure: 0,
         isOpen: false,
         threshold: 5,
-        timeout: 30000 // 30 seconds
+        timeout: 30000,
+        successCount: 0,
+        failureCount: 0,
+        successRate: 100
     },
     cache: {
         failures: 0,
         lastFailure: 0,
         isOpen: false,
         threshold: 3,
-        timeout: 15000 // 15 seconds
+        timeout: 15000,
+        successCount: 0,
+        failureCount: 0,
+        successRate: 100
+    },
+    frontend: {
+        failures: 0,
+        lastFailure: 0,
+        isOpen: false,
+        threshold: 3,
+        timeout: 10000,
+        successCount: 0,
+        failureCount: 0,
+        successRate: 100
     }
 };
 
@@ -31,61 +48,49 @@ const circuitBreaker = {
  * @param {Function} fallback - Fallback function if circuit is open or operation fails
  * @returns {*} Operation result or fallback result
  */
+const updateCircuitBreakerMetrics = (service, success) => {
+    const breaker = circuitBreaker[service];
+    if (!breaker) return;
+    if (success) {
+        breaker.successCount = (breaker.successCount || 0) + 1;
+    } else {
+        breaker.failureCount = (breaker.failureCount || 0) + 1;
+    }
+    const total = (breaker.successCount || 0) + (breaker.failureCount || 0);
+    breaker.successRate = total > 0 ? (breaker.successCount / total) * 100 : 100;
+};
+
 const callWithCircuitBreaker = async (service, operation, fallback = null) => {
     const breaker = circuitBreaker[service];
-    
     if (!breaker) {
-        console.error(`❌ Unknown service for circuit breaker: ${service}`);
         return fallback ? await fallback() : null;
     }
-    
-    // Check if circuit is open 
     if (breaker.isOpen) {
         const timeSinceLastFailure = Date.now() - breaker.lastFailure;
-        
         if (timeSinceLastFailure > breaker.timeout) {
-            // Half-open state: try to reset the circuit
-            console.log(`🔄 Circuit breaker half-open for ${service}, attempting reset...`);
             breaker.isOpen = false;
             breaker.failures = 0;
         } else {
-            // Circuit still open, use fallback
-            console.warn(`⚡ Circuit breaker OPEN for ${service} (${breaker.failures} failures), using fallback`);
+            updateCircuitBreakerMetrics(service, false);
             return fallback ? await fallback() : null;
         }
     }
-    
     try {
-        console.log(`🔧 Executing ${service} operation through circuit breaker...`);
         const result = await operation();
-        
-        // Success: reset failure count
-        if (breaker.failures > 0) {
-            console.log(`✅ Circuit breaker reset for ${service} after successful operation`);
-            breaker.failures = 0;
-        }
-        
+        breaker.failures = 0;
+        updateCircuitBreakerMetrics(service, true);
         return result;
-        
     } catch (error) {
-        // Failure: increment counter and potentially open circuit
         breaker.failures++;
         breaker.lastFailure = Date.now();
-        
-        console.error(`❌ Circuit breaker failure ${breaker.failures}/${breaker.threshold} for ${service}:`, error.message);
-        
+        updateCircuitBreakerMetrics(service, false);
         if (breaker.failures >= breaker.threshold) {
             breaker.isOpen = true;
-            console.error(`💥 Circuit breaker OPENED for ${service} after ${breaker.failures} failures`);
         }
-        
-        // Use fallback if available, otherwise re-throw
         if (fallback) {
-            console.log(`🔄 Using fallback for ${service} after failure`);
             return await fallback();
-        } else {
-            throw error;
         }
+        throw error;
     }
 };
 
@@ -99,15 +104,19 @@ const getCircuitBreakerStatus = () => {
             isOpen: circuitBreaker.websocket.isOpen,
             failures: circuitBreaker.websocket.failures,
             lastFailure: circuitBreaker.websocket.lastFailure,
-            timeSinceLastFailure: circuitBreaker.websocket.lastFailure ? 
-                Date.now() - circuitBreaker.websocket.lastFailure : null
+            timeSinceLastFailure: circuitBreaker.websocket.lastFailure ? Date.now() - circuitBreaker.websocket.lastFailure : null,
+            successCount: circuitBreaker.websocket.successCount,
+            failureCount: circuitBreaker.websocket.failureCount,
+            successRate: circuitBreaker.websocket.successRate
         },
         cache: {
             isOpen: circuitBreaker.cache.isOpen,
             failures: circuitBreaker.cache.failures,
             lastFailure: circuitBreaker.cache.lastFailure,
-            timeSinceLastFailure: circuitBreaker.cache.lastFailure ? 
-                Date.now() - circuitBreaker.cache.lastFailure : null
+            timeSinceLastFailure: circuitBreaker.cache.lastFailure ? Date.now() - circuitBreaker.cache.lastFailure : null,
+            successCount: circuitBreaker.cache.successCount,
+            failureCount: circuitBreaker.cache.failureCount,
+            successRate: circuitBreaker.cache.successRate
         }
     };
 };
@@ -122,10 +131,7 @@ const getCircuitBreakerStatus = () => {
 
 exports.getStores = async (queryParams) => {
     try {
-        // Generate cache key based on query parameters
         const cacheKey = `coupon_backend:stores:${JSON.stringify(queryParams)}`;
-        
-        // Try to get from cache first
         const cachedData = await cacheService.get(cacheKey);
         if (cachedData) {
             console.log('✅ Stores data served from cache');
@@ -134,40 +140,121 @@ exports.getStores = async (queryParams) => {
 
         const { page = 1, limit = 10, language, category, isTopStore, isEditorsChoice } = queryParams;
         const query = {};
-        
+
         if (language) query.language = language;
         if (category) query.categories = category;
         if (isTopStore !== undefined) query.isTopStore = isTopStore === 'true';
         if (isEditorsChoice !== undefined) query.isEditorsChoice = isEditorsChoice === 'true';
-        
-        const stores = await Store.find(query)
-            .limit(parseInt(limit))
-            .skip((parseInt(page) - 1) * parseInt(limit))
-            .populate('categories')
-            .populate({
-                path: 'coupons',
-                select: '_id offerDetails code active isValid featuredForHome hits lastAccessed order',
-                options: { sort: { order: 1 } }  // Sorting applied here
-            })
-            .lean();
-        
-        const totalStores = await Store.countDocuments(query);
-        
-        const result = {
+
+        const aggregation = [
+            { $match: query },
+            {
+                $facet: {
+                    stores: [
+                        { $sort: { createdAt: -1 } },
+                        { $skip: (parseInt(page) - 1) * parseInt(limit) },
+                        { $limit: parseInt(limit) },
+                        {
+                            $lookup: {
+                                from: 'categories',
+                                localField: 'categories',
+                                foreignField: '_id',
+                                as: 'categories'
+                            }
+                        },
+                        {
+                            $lookup: {
+                                from: 'coupons',
+                                let: { storeId: '$_id' },
+                                pipeline: [
+                                    {
+                                        $match: {
+                                            $expr: { $eq: ['$store', '$$storeId'] },
+                                            isValid: true,
+                                            $or: [
+                                                { active: true },
+                                                { code: { $exists: true, $ne: '' } }
+                                            ]
+                                        }
+                                    },
+                                    { $sort: { order: 1, createdAt: -1 } },
+                                    {
+                                        $project: {
+                                            _id: 1,
+                                            offerDetails: 1,
+                                            code: 1,
+                                            active: 1,
+                                            isValid: 1,
+                                            order: 1,
+                                            featuredForHome: 1,
+                                            hits: 1,
+                                            lastAccessed: 1
+                                        }
+                                    }
+                                ],
+                                as: 'coupons'
+                            }
+                        }
+                    ],
+                    totalCount: [
+                        { $count: 'count' }
+                    ]
+                }
+            }
+        ];
+
+        let result;
+        try {
+            result = await Store.aggregate(aggregation).exec();
+        } catch (aggregationError) {
+            console.error('❌ Aggregation failed, falling back to find:', aggregationError);
+            return await exports.getStoresFallback(queryParams);
+        }
+        const stores = result[0]?.stores || [];
+        const totalStores = result[0]?.totalCount[0]?.count || 0;
+
+        const response = {
             stores,
             totalStores,
             timestamp: new Date().toISOString()
         };
 
-        // Cache the result for 1 hour (3600 seconds)
-        await cacheService.set(cacheKey, result, 3600);
-        console.log('✅ Stores data cached successfully');
-        
-        return result;
+        await cacheService.set(cacheKey, response, 3600);
+        return response;
     } catch (error) {
         console.error('Error in storeService.getStores:', error);
         throw error;
     }
+};
+
+exports.getStoresFallback = async (queryParams) => {
+    const { page = 1, limit = 10, language, category, isTopStore, isEditorsChoice } = queryParams;
+    const query = {};
+    if (language) query.language = language;
+    if (category) query.categories = category;
+    if (isTopStore !== undefined) query.isTopStore = isTopStore === 'true';
+    if (isEditorsChoice !== undefined) query.isEditorsChoice = isEditorsChoice === 'true';
+
+        const stores = await Store.find(query)
+            .sort({ createdAt: -1 })
+            .skip((parseInt(page) - 1) * parseInt(limit))
+            .limit(parseInt(limit))
+            .populate('categories')
+            .populate({
+                path: 'coupons',
+                select: '_id offerDetails code active isValid featuredForHome hits lastAccessed order',
+                match: { isValid: true, $or: [{ active: true }, { code: { $exists: true, $ne: '' } }] },
+                options: { sort: { order: 1, createdAt: -1 } }
+            })
+            .lean();
+
+    const totalStores = await Store.countDocuments(query);
+
+    return {
+        stores,
+        totalStores,
+        timestamp: new Date().toISOString()
+    };
 };
 
 
@@ -188,7 +275,15 @@ exports.getStoreBySlug = async (slug) => {
             return cachedData;
         }
 
-        const store = await Store.findOne({ slug }).lean().populate('categories');
+        const store = await Store.findOne({ slug })
+            .lean()
+            .populate('categories')
+            .populate({
+                path: 'coupons',
+                select: '_id offerDetails code active isValid order createdAt',
+                match: { isValid: true, $or: [{ active: true }, { code: { $exists: true, $ne: '' } }] },
+                options: { sort: { order: 1, createdAt: -1 } }
+            });
         if (!store) {
             throw new AppError('Store not found', 404);
         }
@@ -231,7 +326,7 @@ exports.getStoreById = async (storeId) => {
             .populate({
                 path: 'coupons',
                 select: '_id offerDetails code active isValid order createdAt',
-                match: { active: true }, // Only return active coupons
+                match: { isValid: true, $or: [{ active: true }, { code: { $exists: true, $ne: '' } }] },
                 options: { sort: { order: 1, createdAt: -1 } }
             })
             .lean();
@@ -316,7 +411,6 @@ exports.createStore = async (storeData) => {
     console.log(`🔄 Starting enhanced store creation for: ${tempId}`);
 
     try {
-        console.log(`🔄 Starting enhanced store creation for: ${tempId}`);
 
         // ✅ DATABASE CONSISTENCY: Check for existing store with same slug
         console.log('🔍 Step 1: Checking for existing store with same slug...');
@@ -516,25 +610,9 @@ exports.updateStore = async (id, updateData) => {
         const cacheResult = await callWithCircuitBreaker(
             'cache',
             async () => {
-                // Clear specific store caches
                 await cacheService.invalidateStoreCache(storeId);
-                
-                // Clear store-specific patterns
-                const patterns = [
-                    `store:${updatedStore.slug}`,
-                    `store:${storeId}`,
-                    `store:${storeId}:coupons`,
-                    'stores:*' // Clear all store list caches
-                ];
-                
-                let totalDeleted = 0;
-                for (const pattern of patterns) {
-                    const deleted = await cacheService.delPattern(pattern);
-                    totalDeleted += deleted;
-                }
-                
-                console.log(`✅ Cache cleared: ${totalDeleted} keys deleted`);
-                return { success: true, totalDeleted };
+                const res = await cacheService.invalidateStoreCachesSafely(storeId);
+                return { success: true, totalDeleted: res.totalDeleted || 0 };
             },
             async () => {
                 console.warn('⚠️ Cache circuit breaker open, skipping cache invalidation');
@@ -753,39 +831,70 @@ exports.getCircuitBreakerStatus = getCircuitBreakerStatus;
  * @param {Object} metadata - Additional metadata for revalidation
  */
 const callFrontendRevalidation = async (type, identifier, metadata = {}) => {
-    try {
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-        const revalidationEndpoint = `${frontendUrl}/api/revalidate`;
-        
-        const payload = {
-            type,
-            identifier,
-            timestamp: new Date().toISOString(),
-            ...metadata
-        };
-
-        console.log(`🔄 Calling frontend revalidation: ${type}:${identifier}`);
-        
-        const response = await fetch(revalidationEndpoint, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${process.env.REVALIDATION_SECRET || 'default-secret'}`
-            },
-            body: JSON.stringify(payload),
-            timeout: 5000 // 5 second timeout
-        });
-
-        if (response.ok) {
-            const result = await response.json();
-            console.log(`✅ Frontend revalidation successful: ${type}:${identifier}`, result);
-            return { success: true, result };
-        } else {
-            console.warn(`⚠️ Frontend revalidation failed: ${response.status} ${response.statusText}`);
-            return { success: false, error: `HTTP ${response.status}` };
+    return await callWithCircuitBreaker(
+        'frontend',
+        async () => {
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+            const revalidationEndpoint = `${frontendUrl}/api/revalidate`;
+            const payload = {
+                type,
+                identifier,
+                timestamp: new Date().toISOString(),
+                ...metadata
+            };
+            const response = await axios.post(revalidationEndpoint, payload, {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${process.env.REVALIDATION_SECRET || 'default-secret'}`
+                },
+                timeout: 5000
+            });
+            if (response.status >= 200 && response.status < 300) {
+                return { success: true, result: response.data };
+            } else {
+                return { success: false, error: `HTTP ${response.status}` };
+            }
+        },
+        async () => {
+            return { success: false, circuitBreakerOpen: true };
         }
+    );
+};
+
+exports.getSystemHealth = async () => {
+    const health = {
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        database: {
+            status: 'unknown',
+            responseTime: 0
+        },
+        cache: {
+            status: 'unknown',
+            responseTime: 0
+        },
+        circuitBreakers: getCircuitBreakerStatus()
+    };
+
+    try {
+        const dbStart = Date.now();
+        await Store.findOne().select('_id').lean();
+        health.database.responseTime = Date.now() - dbStart;
+        health.database.status = 'healthy';
     } catch (error) {
-        console.error(`❌ Frontend revalidation error for ${type}:${identifier}:`, error.message);
-        return { success: false, error: error.message };
+        health.database.status = 'unhealthy';
+        health.status = 'degraded';
     }
+
+    try {
+        const cacheStart = Date.now();
+        await cacheService.ping();
+        health.cache.responseTime = Date.now() - cacheStart;
+        health.cache.status = 'healthy';
+    } catch (error) {
+        health.cache.status = 'unhealthy';
+        health.status = 'degraded';
+    }
+
+    return health;
 };

@@ -15,9 +15,11 @@ const couponSchema = new mongoose.Schema({
     toJSON: { virtuals: true },
     toObject: { virtuals: true }
 });
-  
-  
 
+couponSchema.index({ store: 1, isValid: 1, active: 1, order: 1 });
+couponSchema.index({ store: 1, order: 1 });
+couponSchema.index({ store: 1, featuredForHome: 1 });
+couponSchema.index({ store: 1, code: 1 }, { partialFilterExpression: { code: { $type: 'string' } } });
 // ✅ Ensure either "Code" or "Active" is present
 couponSchema.pre('validate', function (next) {
     if (!this.active && !this.code) {

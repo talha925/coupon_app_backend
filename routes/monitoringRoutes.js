@@ -2,6 +2,7 @@ const express = require('express');
 const { performanceMonitor } = require('../middleware/performanceMonitoring');
 const healthCheckService = require('../services/healthCheckService');
 const performanceReporter = require('../services/performanceReporter');
+const storeService = require('../services/storeService');
 
 const router = express.Router();
 
@@ -38,6 +39,11 @@ router.get('/metrics', (req, res) => {
 router.get('/health', async (req, res) => {
     const healthStatus = await healthCheckService.runHealthCheck();
     res.status(healthStatus.status === 'healthy' ? 200 : 503).json(healthStatus);
+});
+
+router.get('/system-health', async (req, res) => {
+    const health = await storeService.getSystemHealth();
+    res.status(health.status === 'healthy' ? 200 : 503).json(health);
 });
 
 // Generate performance report

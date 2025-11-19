@@ -157,6 +157,15 @@ class CacheService {
     return this.redis && redisConfig.isReady();
   }
 
+  async ping() {
+    await this.ensureInitialized();
+    if (!this.isAvailable()) {
+      throw new Error('Redis not available');
+    }
+    const res = await this.redis.ping();
+    return res;
+  }
+
   generateKey(type, params = {}) {
     // ✅ CONSISTENT KEY PATTERNS: store:{slug}, coupon:{id}, etc.
     switch (type) {

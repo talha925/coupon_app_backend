@@ -78,7 +78,7 @@ const blogPostSchema = new mongoose.Schema({
     maxlength: [200, 'Title cannot be more than 200 characters']
   },  slug: {
     type: String,
-    unique: true,
+    unique: true, 
     lowercase: true
     // Removed duplicate index: true to fix warning
   },

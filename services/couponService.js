@@ -5,6 +5,7 @@ const AppError = require('../errors/AppError');
 const { formatCoupon } = require('../utils/couponUtils');
 const { getWebSocketServer } = require('../lib/websocket-server');
 const cacheService = require('./cacheService');
+const axios = require('axios');
 
 // Circuit breaker for external dependencies
 const circuitBreaker = {
@@ -21,6 +22,13 @@ const circuitBreaker = {
         isOpen: false,
         threshold: 3,
         timeout: 15000 // 15 seconds
+    },
+    frontend: {
+        failures: 0,
+        lastFailure: 0,
+        isOpen: false,
+        threshold: 3,
+        timeout: 10000
     }
 };
 
@@ -73,53 +81,74 @@ const callFrontendRevalidation = async (type, identifier, metadata = {}) => {
     try {
         const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
         const revalidationEndpoint = `${frontendUrl}/api/revalidate`;
-        
         const payload = {
             type,
             identifier,
             timestamp: new Date().toISOString(),
             ...metadata
         };
-
-        console.log(`🔄 Calling frontend revalidation: ${type}:${identifier}`);
-        
-        const response = await fetch(revalidationEndpoint, {
-            method: 'POST',
+        const response = await axios.post(revalidationEndpoint, payload, {
             headers: {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${process.env.REVALIDATION_SECRET || 'default-secret'}`
             },
-            body: JSON.stringify(payload),
-            timeout: 5000 // 5 second timeout
+            timeout: 5000
         });
-
-        if (response.ok) {
-            const result = await response.json();
-            console.log(`✅ Frontend revalidation successful: ${type}:${identifier}`, result);
-            return { success: true, result };
+        if (response.status >= 200 && response.status < 300) {
+            return { success: true, result: response.data };
         } else {
-            console.warn(`⚠️ Frontend revalidation failed: ${response.status} ${response.statusText}`);
             return { success: false, error: `HTTP ${response.status}` };
         }
     } catch (error) {
-        console.error(`❌ Frontend revalidation error for ${type}:${identifier}:`, error.message);
         return { success: false, error: error.message };
     }
 };
+
+const callFrontendRevalidationWithCircuitBreaker = async (type, identifier, metadata = {}) => {
+  return await callWithCircuitBreaker(
+    'frontend',
+    async () => await callFrontendRevalidation(type, identifier, metadata),
+    async () => ({ success: false, circuitBreakerOpen: true })
+  );
+};
+
+setInterval(() => {
+  Object.keys(circuitBreaker).forEach(service => {
+    const b = circuitBreaker[service];
+    if (!b.isOpen && b.failures > 0) {
+      b.failures = 0;
+    }
+  });
+}, 300000);
 
 // Get all coupons for a specific store with pagination (20 coupons per page)
 exports.getCouponsByStore = async (queryParams, storeId) => {
   try {
     const { page = 1, active, isValid = true, featuredForHome } = queryParams;
+    if (!mongoose.Types.ObjectId.isValid(storeId)) {
+      throw new AppError('Invalid store ID', 400);
+    }
 
     const query = { store: storeId }; // Filter by store
     if (active !== undefined) query.active = active === 'true';
     if (featuredForHome !== undefined) query.featuredForHome = featuredForHome === 'true';
     if (isValid !== undefined) query.isValid = isValid === 'true';
 
+    const params = {
+      page: parseInt(page),
+      active: active !== undefined ? (active === 'true') : undefined,
+      isValid: isValid !== undefined ? (isValid === 'true') : undefined,
+      featuredForHome: featuredForHome !== undefined ? (featuredForHome === 'true') : undefined
+    };
+
+    const cached = await cacheService.getStoreCoupons(storeId, params);
+    if (cached) {
+      return cached;
+    }
+
     // Fetch coupons with pagination (limit 20 per page)
     const coupons = await Coupon.find(query)
-      .sort({ order: 1 })  // **Add this line**
+      .sort({ order: 1, createdAt: -1 })
       .skip((parseInt(page) - 1) * 20) // Skip based on the page number
       .limit(20) // Limit the number of coupons per page to 20
       .select('-__v') // Exclude the `__v` field from the response
@@ -131,15 +160,19 @@ exports.getCouponsByStore = async (queryParams, storeId) => {
     // Get the total count of coupons for pagination
     const totalCoupons = await Coupon.countDocuments(query);
 
-    return {
+    const result = {
       coupons,
       totalCoupons,
-      totalPages: Math.ceil(totalCoupons / 20), // Calculate total pages (based on 20 items per page)
+      totalPages: Math.ceil(totalCoupons / 20),
       currentPage: parseInt(page),
     };
+
+    await cacheService.setStoreCoupons(storeId, result, params);
+
+    return result;
   } catch (error) {
     console.error('Error in couponService.getCouponsByStore:', error);
-    throw error;
+    throw error instanceof AppError ? error : new AppError('Internal server error', 500);
   }
 };
 
@@ -147,14 +180,36 @@ exports.getCouponsByStore = async (queryParams, storeId) => {
 exports.getCoupons = async (queryParams) => {
   try {
     const { page = 1, limit = 10, store, active, isValid = true, featuredForHome } = queryParams;
-    const query = { isValid };
+    const query = {};
+
+    if (typeof isValid !== 'undefined') {
+      query.isValid = isValid === 'true' || isValid === true;
+    } else {
+      query.isValid = true;
+    }
 
     if (store) query.store = store;
     if (active !== undefined) query.active = active === 'true';
     if (featuredForHome !== undefined) query.featuredForHome = featuredForHome === 'true';
 
+    const params = {
+      page: parseInt(page),
+      limit: parseInt(limit),
+      store: store || undefined,
+      active: active !== undefined ? (active === 'true') : undefined,
+      isValid: typeof isValid !== 'undefined' ? (isValid === 'true' || isValid === true) : true,
+      featuredForHome: featuredForHome !== undefined ? (featuredForHome === 'true') : undefined
+    };
+
+    const cacheKey = cacheService.generateKey('coupon', params);
+    const cached = await cacheService.get(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     // Execute query with pagination
     const coupons = await Coupon.find(query)
+      .sort({ order: 1, createdAt: -1 })
       .skip((parseInt(page) - 1) * parseInt(limit))
       .limit(parseInt(limit))
       .select('-__v')
@@ -176,15 +231,19 @@ exports.getCoupons = async (queryParams) => {
       storeId: coupon.store,
     }));
 
-    return {
+    const result = {
       coupons: formattedCoupons,
       totalPages: Math.ceil(totalCoupons / parseInt(limit)),
       currentPage: parseInt(page),
       totalCoupons,
     };
+
+    await cacheService.set(cacheKey, result, 1800);
+
+    return result;
   } catch (error) {
     console.error('Error in couponService.getCoupons:', error);
-    throw error;
+    throw error instanceof AppError ? error : new AppError('Internal server error', 500);
   }
 };
 
@@ -201,24 +260,40 @@ exports.createCoupon = async (couponData) => {
       $push: { coupons: newCoupon._id },
     });
 
+    const storeId = newCoupon.store.toString();
+    await callWithCircuitBreaker(
+      'cache',
+      async () => {
+        await cacheService.invalidateCouponCache(newCoupon._id.toString(), storeId);
+        return await cacheService.invalidateStoreCachesSafely(storeId);
+      },
+      async () => ({ success: false, fallback: true })
+    );
+
+    await callFrontendRevalidationWithCircuitBreaker('store', storeId, {
+      action: 'created',
+      couponId: newCoupon._id.toString()
+    });
+
     // 🚀 WebSocket: Notify real-time coupon creation
-    try {
-      const wsServer = getWebSocketServer();
-      await wsServer.notifyCouponUpdate(newCoupon._id.toString(), 'created', {
-        title: newCoupon.title,
-        storeId: newCoupon.store.toString(),
-        type: newCoupon.type,
-        active: newCoupon.active
-      });
-    } catch (wsError) {
-      console.error('⚠️ WebSocket notification failed (coupon creation):', wsError.message);
-      // Don't throw - WebSocket errors shouldn't break coupon creation
+    if (process.env.WS_ENABLED === 'true') {
+      try {
+        const wsServer = getWebSocketServer();
+        await wsServer.notifyCouponUpdate(newCoupon._id.toString(), 'created', {
+          title: newCoupon.title,
+          storeId: newCoupon.store.toString(),
+          type: newCoupon.type,
+          active: newCoupon.active
+        });
+      } catch (wsError) {
+        console.error('⚠️ WebSocket notification failed (coupon creation):', wsError.message);
+      }
     }
 
     return newCoupon;
   } catch (error) {
     console.error('Error in couponService.createCoupon:', error);
-    throw error;
+    throw error instanceof AppError ? error : new AppError('Internal server error', 500);
   }
 };
 
@@ -257,56 +332,36 @@ exports.updateCoupon = async (id, updateData) => {
     const cacheResult = await callWithCircuitBreaker(
       'cache',
       async () => {
-        // Clear coupon-specific caches
-        await cacheService.invalidateCouponCache(id);
-        
-        // Clear store-related coupon caches
         const storeId = updatedCoupon.store.toString();
-        const patterns = [
-          `coupon:${id}`,
-          `store:${storeId}:coupons`,
-          'coupons:*' // Clear all coupon list caches
-        ];
-        
-        let totalDeleted = 0;
-        for (const pattern of patterns) {
-          const deleted = await cacheService.delPattern(pattern);
-          totalDeleted += deleted;
-        }
-        
-        console.log(`✅ Cache cleared: ${totalDeleted} keys deleted`);
-        return { success: true, totalDeleted };
+        await cacheService.invalidateCouponCache(id, storeId);
+        return await cacheService.invalidateStoreCachesSafely(storeId);
       },
-      async () => {
-        console.warn('⚠️ Cache circuit breaker open, skipping cache invalidation');
-        return { success: false, fallback: true };
-      }
+      async () => ({ success: false, fallback: true })
     );
 
     // ✅ STEP 3: TRIGGER WEBSOCKET NOTIFICATION
     console.log('📡 Step 3: Triggering WebSocket notification...');
-    const wsResult = await callWithCircuitBreaker(
-      'websocket',
-      async () => {
-        const wsServer = getWebSocketServer();
-        return await wsServer.notifyCouponUpdate(updatedCoupon._id.toString(), 'updated', {
-          title: updatedCoupon.title,
-          storeId: updatedCoupon.store.toString(),
-          type: updatedCoupon.type,
-          active: updatedCoupon.active,
-          updatedFields: Object.keys(updateData),
-          timestamp: new Date().toISOString()
-        });
-      },
-      async () => {
-        console.warn('⚠️ WebSocket circuit breaker open, skipping notification');
-        return { success: false, fallback: true };
-      }
-    );
+    const wsResult = process.env.WS_ENABLED === 'true'
+      ? await callWithCircuitBreaker(
+        'websocket',
+        async () => {
+          const wsServer = getWebSocketServer();
+          return await wsServer.notifyCouponUpdate(updatedCoupon._id.toString(), 'updated', {
+            title: updatedCoupon.title,
+            storeId: updatedCoupon.store.toString(),
+            type: updatedCoupon.type,
+            active: updatedCoupon.active,
+            updatedFields: Object.keys(updateData),
+            timestamp: new Date().toISOString()
+          });
+        },
+        async () => ({ success: false, fallback: true })
+      )
+      : { success: false, skipped: true };
 
     // ✅ STEP 4: CALL FRONTEND REVALIDATION
     console.log('🔄 Step 4: Calling frontend revalidation...');
-    const revalidationResult = await callFrontendRevalidation('coupon', id, {
+    const revalidationResult = await callFrontendRevalidationWithCircuitBreaker('coupon', id, {
       couponTitle: updatedCoupon.title,
       storeId: updatedCoupon.store.toString(),
       updatedFields: Object.keys(updateData)
@@ -328,7 +383,7 @@ exports.updateCoupon = async (id, updateData) => {
 
   } catch (error) {
     console.error(`❌ ATOMIC coupon update failed for ${id}:`, error);
-    throw error;
+    throw error instanceof AppError ? error : new AppError('Internal server error', 500);
   }
 };
 
@@ -359,49 +414,33 @@ exports.deleteCoupon = async (id) => {
       'cache',
       async () => {
         const storeId = deletedCoupon.store.toString();
-        const patterns = [
-          `coupon:${id}`,
-          `store:${storeId}:coupons`,
-          'coupons:*'
-        ];
-        
-        let totalDeleted = 0;
-        for (const pattern of patterns) {
-          const deleted = await cacheService.delPattern(pattern);
-          totalDeleted += deleted;
-        }
-        
-        console.log(`✅ Cache cleared: ${totalDeleted} keys deleted`);
-        return { success: true, totalDeleted };
+        await cacheService.invalidateCouponCache(id, storeId);
+        return await cacheService.invalidateStoreCachesSafely(storeId);
       },
-      async () => {
-        console.warn('⚠️ Cache circuit breaker open, skipping cache invalidation');
-        return { success: false, fallback: true };
-      }
+      async () => ({ success: false, fallback: true })
     );
 
     // ✅ STEP 3: TRIGGER WEBSOCKET NOTIFICATION
     console.log('📡 Step 3: Triggering WebSocket notification...');
-    const wsResult = await callWithCircuitBreaker(
-      'websocket',
-      async () => {
-        const wsServer = getWebSocketServer();
-        return await wsServer.notifyCouponUpdate(deletedCoupon._id.toString(), 'deleted', {
-          title: deletedCoupon.title,
-          storeId: deletedCoupon.store.toString(),
-          type: deletedCoupon.type,
-          timestamp: new Date().toISOString()
-        });
-      },
-      async () => {
-        console.warn('⚠️ WebSocket circuit breaker open, skipping notification');
-        return { success: false, fallback: true };
-      }
-    );
+    const wsResult = process.env.WS_ENABLED === 'true'
+      ? await callWithCircuitBreaker(
+        'websocket',
+        async () => {
+          const wsServer = getWebSocketServer();
+          return await wsServer.notifyCouponUpdate(deletedCoupon._id.toString(), 'deleted', {
+            title: deletedCoupon.title,
+            storeId: deletedCoupon.store.toString(),
+            type: deletedCoupon.type,
+            timestamp: new Date().toISOString()
+          });
+        },
+        async () => ({ success: false, fallback: true })
+      )
+      : { success: false, skipped: true };
 
     // ✅ STEP 4: CALL FRONTEND REVALIDATION
     console.log('🔄 Step 4: Calling frontend revalidation...');
-    const revalidationResult = await callFrontendRevalidation('coupon', id, {
+    const revalidationResult = await callFrontendRevalidationWithCircuitBreaker('coupon', id, {
       action: 'deleted',
       couponTitle: deletedCoupon.title,
       storeId: deletedCoupon.store.toString()
@@ -422,7 +461,7 @@ exports.deleteCoupon = async (id) => {
 
   } catch (error) {
     console.error(`❌ ATOMIC coupon deletion failed for ${id}:`, error);
-    throw error;
+    throw error instanceof AppError ? error : new AppError('Internal server error', 500);
   }
 };
 
@@ -446,7 +485,7 @@ exports.trackCouponUsage = async (couponId) => {
     return formatCoupon(coupon);
   } catch (error) {
     console.error('Error in couponService.trackCouponUsage:', error);
-    throw error;
+    throw error instanceof AppError ? error : new AppError('Internal server error', 500);
   }
 };
 
@@ -457,7 +496,9 @@ exports.getCouponById = async (id) => {
       throw new AppError('Invalid Coupon ID', 400);
     }
 
-    const coupon = await Coupon.findById(id).lean();
+    const coupon = await Coupon.findById(id)
+      .populate({ path: 'store', select: 'name image trackingUrl' })
+      .lean();
 
     if (!coupon) {
       throw new AppError('Coupon not found', 404);
@@ -466,7 +507,7 @@ exports.getCouponById = async (id) => {
     return formatCoupon(coupon);
   } catch (error) {
     console.error('Error in couponService.getCouponById:', error);
-    throw error;
+    throw error instanceof AppError ? error : new AppError('Internal server error', 500);
   }
 };
 
@@ -490,8 +531,8 @@ exports.updateCouponOrder = async (storeId, orderedCouponIds) => {
     }
 
     // Check store existence
-    const store = await Store.findById(storeId);
-    if (!store) {
+    const storeExists = await Store.exists({ _id: storeId });
+    if (!storeExists) {
       throw new AppError('Store not found', 404);
     }
 
@@ -546,14 +587,44 @@ exports.updateCouponOrder = async (storeId, orderedCouponIds) => {
 
 
     // **Here update the Store document coupons array order**
-    await Store.findByIdAndUpdate(storeId, { coupons: orderedCouponIds });
+    await Store.findByIdAndUpdate(storeId, { coupons: orderedCouponIds, updatedAt: new Date() });
     console.log('Store coupons array updated to:', orderedCouponIds);
 
-    // Confirm updated order from DB
     const updatedCoupons = await Coupon.find({ store: storeId }).sort({ order: 1 }).select('_id order').lean();
-    console.log('Updated coupons order:', updatedCoupons.map(c => ({ id: c._id.toString(), order: c.order })));
 
-    return { message: 'Coupon order updated successfully', totalUpdated: bulkOps.length };
+    const cacheResult = await callWithCircuitBreaker(
+      'cache',
+      async () => {
+        await cacheService.invalidateStoreCache(storeId);
+        const res = await cacheService.invalidateStoreCachesSafely(storeId);
+        return { success: true, totalDeleted: res.totalDeleted || 0 };
+      },
+      async () => ({ success: false, fallback: true })
+    );
+
+    const wsResult = process.env.WS_ENABLED === 'true'
+      ? await callWithCircuitBreaker(
+        'websocket',
+        async () => {
+          const wsServer = getWebSocketServer();
+          return await wsServer.notifyStoreUpdate(storeId, 'updated', {
+            event: 'coupon_order_updated',
+            orderedCouponIds
+          });
+        },
+        async () => ({ success: false, fallback: true })
+      )
+      : { success: false, skipped: true };
+
+    await callFrontendRevalidationWithCircuitBreaker('store', storeId, { storeId, event: 'coupon_order_updated' });
+
+    try {
+      await exports.getCouponsByStore({ page: 1, isValid: 'true' }, storeId);
+    } catch (warmErr) {
+      console.error('Cache warm failed:', warmErr.message);
+    }
+
+    return { message: 'Coupon order updated successfully', totalUpdated: bulkOps.length, cache: cacheResult, websocket: wsResult };
   } catch (error) {
     console.error('Error updating coupon order:', error);
     throw error instanceof AppError ? error : new AppError(error.message || 'Internal Server Error', 500);

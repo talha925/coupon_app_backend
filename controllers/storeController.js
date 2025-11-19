@@ -131,5 +131,3 @@ exports.deleteStore = async (req, res, next) => {
         next(new AppError(error.message || 'Error deleting store', error.statusCode || 500));
     }
 };
-
-// Note: Manual cache invalidation controller removed - now handled automatically via WebSocket notifications
