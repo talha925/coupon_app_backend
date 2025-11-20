@@ -302,8 +302,18 @@ exports.updateCoupon = async (id, updateData) => {
   try {
     console.log(`🔄 Starting ATOMIC coupon update for: ${id}`);
 
+    const existingCoupon = await Coupon.findById(id).select('code active store title type');
+    if (!existingCoupon) {
+      throw new AppError('Coupon not found', 404);
+    }
+
     if (typeof updateData.active !== 'undefined' && updateData.active === false) {
-      throw new AppError("Cannot update inactive coupon", 400);
+      const newCode = typeof updateData.code === 'string' ? updateData.code.trim() : '';
+      const prevCode = typeof existingCoupon.code === 'string' ? existingCoupon.code.trim() : '';
+      const hasCode = newCode.length > 0 || prevCode.length > 0;
+      if (!hasCode) {
+        throw new AppError('Cannot set coupon inactive without a code', 400);
+      }
     }
 
     if (updateData.expirationDate && isNaN(Date.parse(updateData.expirationDate))) {
@@ -320,10 +330,6 @@ exports.updateCoupon = async (id, updateData) => {
       },
       { new: true, runValidators: true }
     );
-
-    if (!updatedCoupon) {
-      throw new AppError('Coupon not found', 404);
-    }
 
     console.log('✅ Database update completed');
 

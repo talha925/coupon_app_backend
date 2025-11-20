@@ -40,6 +40,9 @@ async function run() {
   console.log('General count:', general.totalCoupons);
   console.log('General order:', general.coupons.map(c => c.order));
 
+  const updated = await couponService.updateCoupon(c2._id.toString(), { active: false, code: '' });
+  console.log('Updated coupon active:', updated.coupon.active, 'code:', updated.coupon.code);
+
   await mongoose.disconnect();
   await mongod.stop();
 }
