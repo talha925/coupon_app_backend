@@ -4,7 +4,7 @@ const { catchAsync } = require('../utils/errorUtils');
 
 exports.getBlogs = catchAsync(async (req, res) => {
   const result = await BlogService.findAll(req.query);
-  
+
   res.status(200).json({
     success: true,
     message: 'Blog posts retrieved successfully',
@@ -18,7 +18,7 @@ exports.getBlogById = catchAsync(async (req, res) => {
     BlogService.findById(req.params.id),
     BlogService.getRelatedPosts(null, null, req.params.id, 3) // Get 3 related posts
   ]);
-  
+
   res.status(200).json({
     success: true,
     message: 'Blog post retrieved successfully',
@@ -31,7 +31,7 @@ exports.getBlogById = catchAsync(async (req, res) => {
 
 exports.createBlog = catchAsync(async (req, res) => {
   const blog = await BlogService.create(req.body);
-  
+
   res.status(201).json({
     success: true,
     message: 'Blog post created successfully',
@@ -41,7 +41,7 @@ exports.createBlog = catchAsync(async (req, res) => {
 
 exports.updateBlog = catchAsync(async (req, res) => {
   const blog = await BlogService.update(req.params.id, req.body);
-  
+
   res.status(200).json({
     success: true,
     message: 'Blog post updated successfully',
@@ -51,7 +51,7 @@ exports.updateBlog = catchAsync(async (req, res) => {
 
 exports.deleteBlog = catchAsync(async (req, res) => {
   await BlogService.delete(req.params.id);
-  
+
   res.status(200).json({
     success: true,
     message: 'Blog post deleted successfully',
@@ -68,7 +68,7 @@ exports.getRelatedPosts = catchAsync(async (req, res) => {
     req.params.id,
     parseInt(limit)
   );
-  
+
   res.status(200).json({
     success: true,
     message: 'Related posts retrieved successfully',
@@ -81,7 +81,7 @@ exports.updateEngagement = catchAsync(async (req, res) => {
     req.params.id,
     req.body
   );
-  
+
   res.status(200).json({
     success: true,
     message: 'Engagement metrics updated successfully',

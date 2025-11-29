@@ -6,28 +6,28 @@ const cacheService = require('./cacheService');
 class BlogService {
   async findAll(queryParams) {
     try {
-      const { 
-        page = 1, 
-        limit = 10, 
+      const {
+        page = 1,
+        limit = 10,
         status = 'published',
-        categoryId, 
-        storeId, 
-        tags, 
+        categoryId,
+        storeId,
+        tags,
         search,
         FrontBanner,
         sort = '-publishDate'
       } = queryParams;
 
-      const cacheKey = cacheService.generateKey('blogs', { 
-        page, 
-        limit, 
-        status, 
-        categoryId, 
-        storeId, 
-        tags, 
+      const cacheKey = cacheService.generateKey('blogs', {
+        page,
+        limit,
+        status,
+        categoryId,
+        storeId,
+        tags,
         search,
         FrontBanner,
-        sort 
+        sort
       });
 
       const cachedResult = await cacheService.get(cacheKey);
@@ -74,28 +74,49 @@ class BlogService {
         }
       }
 
-      const skip = (parseInt(page) - 1) * parseInt(limit);
-
       const selectFields =
         'title slug shortDescription image.url image.alt meta author.name category.name category.slug store.name store.url tags status publishDate engagement.readingTime FrontBanner isFeaturedForHome version robots createdAt';
 
-      const [blogs, total] = await Promise.all([
-        BlogPost.find(query)
-          .sort(sort)
-          .skip(skip)
-          .limit(parseInt(limit))
-          .select(selectFields)
-          .lean(),
-        BlogPost.countDocuments(query)
-      ]);
+      // ✅ FIX: Calculate total first to validate pagination
+      const total = await BlogPost.countDocuments(query);
+      const pageNum = parseInt(page);
+      const limitNum = parseInt(limit);
+      const totalPages = Math.ceil(total / limitNum);
+
+      // ✅ FIX: Validate page number
+      if (pageNum > totalPages && totalPages > 0) {
+        // Return empty result for invalid page
+        const result = {
+          blogs: [],
+          pagination: {
+            total,
+            page: pageNum,
+            pages: totalPages,
+            limit: limitNum
+          }
+        };
+
+        const cacheTTL = FrontBanner !== undefined ? 900 : 300;
+        await cacheService.set(cacheKey, result, cacheTTL);
+        return result;
+      }
+
+      const skip = (pageNum - 1) * limitNum;
+
+      const blogs = await BlogPost.find(query)
+        .sort(sort)
+        .skip(skip)
+        .limit(limitNum)
+        .select(selectFields)
+        .lean();
 
       const result = {
         blogs,
         pagination: {
           total,
-          page: parseInt(page),
-          pages: Math.ceil(total / parseInt(limit)),
-          limit: parseInt(limit)
+          page: pageNum,
+          pages: totalPages,
+          limit: limitNum
         }
       };
 
@@ -108,6 +129,79 @@ class BlogService {
     } catch (error) {
       console.error('❌ BlogService.findAll Error:', error);
       throw new AppError('Failed to fetch blog posts', 500);
+    }
+  }
+
+  async create(data) {
+    try {
+      const blog = await BlogPost.create(data);
+      // Invalidate cache (simplified)
+      // In a real app, you might want to be more granular or use tags
+      // For now, we'll just let the TTL expire or clear specific keys if we tracked them
+      // But since we don't track all list keys, we accept eventual consistency or clear all if possible.
+      // cacheService.del('blogs') is not implemented to clear patterns easily without scan.
+      // So we rely on TTL or specific key invalidation if we knew it.
+      // For now, just return the blog.
+      return blog;
+    } catch (error) {
+      console.error('❌ BlogService.create Error:', error);
+      throw new AppError('Failed to create blog post', 500);
+    }
+  }
+
+  async update(id, data) {
+    try {
+      const blog = await BlogPost.findByIdAndUpdate(id, data, {
+        new: true,
+        runValidators: true
+      });
+      if (!blog) throw new AppError('Blog post not found', 404);
+
+      const cacheKey = cacheService.generateKey('blog_post', { id });
+      await cacheService.del(cacheKey);
+
+      return blog;
+    } catch (error) {
+      console.error('❌ BlogService.update Error:', error);
+      if (error instanceof AppError) throw error;
+      throw new AppError('Failed to update blog post', 500);
+    }
+  }
+
+  async delete(id) {
+    try {
+      const blog = await BlogPost.findByIdAndDelete(id);
+      if (!blog) throw new AppError('Blog post not found', 404);
+
+      const cacheKey = cacheService.generateKey('blog_post', { id });
+      await cacheService.del(cacheKey);
+
+      return null;
+    } catch (error) {
+      console.error('❌ BlogService.delete Error:', error);
+      if (error instanceof AppError) throw error;
+      throw new AppError('Failed to delete blog post', 500);
+    }
+  }
+
+  async updateEngagementMetrics(id, metrics) {
+    try {
+      // metrics is expected to be an object with fields to update, e.g., { "engagement.likes": 10 } or { engagement: { ... } }
+      // or if using increments, the controller should have prepared the update operator.
+      // We'll assume direct update for now.
+      const blog = await BlogPost.findByIdAndUpdate(id, metrics, {
+        new: true
+      });
+      if (!blog) throw new AppError('Blog post not found', 404);
+
+      const cacheKey = cacheService.generateKey('blog_post', { id });
+      await cacheService.del(cacheKey);
+
+      return blog;
+    } catch (error) {
+      console.error('❌ BlogService.updateEngagementMetrics Error:', error);
+      if (error instanceof AppError) throw error;
+      throw new AppError('Failed to update engagement metrics', 500);
     }
   }
 
