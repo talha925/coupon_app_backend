@@ -1,5 +1,5 @@
 const express = require('express');
-const { performanceMonitor } = require('../middleware/performanceMonitoring');
+const { performanceMonitor } = require('../middlewares/performanceMonitoring');
 const healthCheckService = require('../services/healthCheckService');
 const performanceReporter = require('../services/performanceReporter');
 const storeService = require('../services/storeService');
@@ -10,7 +10,7 @@ const router = express.Router();
 router.get('/', async (req, res) => {
     const stats = performanceMonitor.getMetrics();
     const healthStatus = await healthCheckService.runHealthCheck();
-    
+
     res.json({
         status: 'ok',
         timestamp: new Date().toISOString(),
@@ -50,7 +50,7 @@ router.get('/system-health', async (req, res) => {
 router.get('/report/:type', async (req, res) => {
     const { type } = req.params;
     const stats = performanceMonitor.getMetrics();
-    
+
     try {
         let report;
         if (type === 'daily') {
@@ -60,7 +60,7 @@ router.get('/report/:type', async (req, res) => {
         } else {
             return res.status(400).json({ error: 'Invalid report type' });
         }
-        
+
         res.json(report);
     } catch (error) {
         res.status(500).json({ error: error.message });

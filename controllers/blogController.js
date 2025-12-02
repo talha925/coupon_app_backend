@@ -14,18 +14,15 @@ exports.getBlogs = catchAsync(async (req, res) => {
 
 exports.getBlogById = catchAsync(async (req, res) => {
   // PERFORMANCE: Parallel execution for blog and related data
-  const [blog, relatedPosts] = await Promise.all([
-    BlogService.findById(req.params.id),
-    BlogService.getRelatedPosts(null, null, req.params.id, 3) // Get 3 related posts
-  ]);
+  const blog = await BlogService.findById(req.params.id);
+  // Note: relatedPosts are already fetched inside findById, so we don't need to fetch them separately here if findById does it.
+  // However, looking at the service, findById returns { ...blog, relatedPosts }.
+  // So we can just use the result directly.
 
   res.status(200).json({
     success: true,
     message: 'Blog post retrieved successfully',
-    data: {
-      blog,
-      relatedPosts
-    }
+    data: blog // blog object already contains relatedPosts from findById
   });
 });
 
@@ -66,7 +63,7 @@ exports.getRelatedPosts = catchAsync(async (req, res) => {
     categoryId,
     storeId,
     req.params.id,
-    parseInt(limit)
+    parseInt(limit) || 3
   );
 
   res.status(200).json({

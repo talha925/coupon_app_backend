@@ -1,10 +1,9 @@
-// services/cacheService.js - COMPLETE BACKEND OVERHAUL VERSION
 const redisConfig = require('../config/redis');
-const { trackCache } = require('../middleware/performanceMonitoring');
+const { trackCache } = require('../middlewares/performanceMonitoring');
 
 class CacheService {
   static initializing = false;
-  
+
   constructor() {
     this.redis = null;
     this.defaultTTL = {
@@ -29,7 +28,7 @@ class CacheService {
       totalReconnects: 0,
       isHealthy: false
     };
-    
+
     if (!CacheService.initializing) {
       CacheService.initializing = true;
       this.initializeCache();
@@ -69,7 +68,7 @@ class CacheService {
       const delay = attempt <= 3 ? retryDelay : retryDelay * Math.pow(2, attempt - 3);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
-    
+
     this.isInitialized = true;
     this.connectionHealth.isHealthy = false;
     return false;
@@ -185,7 +184,7 @@ class CacheService {
         // Fallback to original pattern for other types
         const baseKey = `coupon_backend:${type}`;
         if (Object.keys(params).length === 0) return baseKey;
-        
+
         const filteredParams = Object.entries(params)
           .filter(([_, value]) => value !== undefined && value !== null)
           .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
@@ -193,20 +192,20 @@ class CacheService {
             obj[key] = value;
             return obj;
           }, {});
-          
+
         if (Object.keys(filteredParams).length === 0) return baseKey;
-        
+
         const paramString = Object.keys(filteredParams)
           .map(key => `${key}:${filteredParams[key]}`)
           .join('|');
-          
+
         return `${baseKey}:${paramString}`;
     }
   }
 
   _hashParams(params) {
     if (!params || Object.keys(params).length === 0) return 'all';
-    
+
     const filteredParams = Object.entries(params)
       .filter(([_, value]) => value !== undefined && value !== null)
       .sort(([keyA], [keyB]) => keyA.localeCompare(keyB))
@@ -214,7 +213,7 @@ class CacheService {
         obj[key] = value;
         return obj;
       }, {});
-      
+
     return Object.keys(filteredParams)
       .map(key => `${key}:${filteredParams[key]}`)
       .join('|');
@@ -269,7 +268,7 @@ class CacheService {
 
     try {
       const keysToDelete = [];
-      
+
       // Store-specific keys
       if (storeSlug) {
         keysToDelete.push(this.generateKey('store', { slug: storeSlug }));
@@ -308,7 +307,7 @@ class CacheService {
 
     try {
       const keysToDelete = [];
-      
+
       // Coupon-specific keys
       keysToDelete.push(this.generateKey('coupon', { id: couponId }));
 
@@ -340,13 +339,13 @@ class CacheService {
   async _getKeysByPattern(pattern) {
     const keys = [];
     let cursor = '0';
-    
+
     do {
       const result = await this.redis.scan(cursor, { MATCH: pattern, COUNT: 100 });
       cursor = result.cursor;
       keys.push(...result.keys);
     } while (cursor !== '0');
-    
+
     return keys;
   }
 
@@ -459,7 +458,7 @@ class CacheService {
           deletedCount += result;
         }
       }
-      
+
       console.log(`✅ Deleted ${deletedCount} cache keys for pattern: ${pattern}`);
       return deletedCount;
     } catch (error) {
@@ -493,19 +492,19 @@ class CacheService {
         'coupon_backend:stores*',
         'coupon_backend:store:*',
         'coupon_backend:store_search*',
-        
+
         // Blog patterns
         'coupon_backend:blog*',
         'coupon_backend:blogs*',
         'coupon_backend:frontBannerBlogs*',
         'coupon_backend:related*',
-        
+
         // Homepage patterns
         'coupon_backend:homepage*',
-        
+
         // Category patterns
         'coupon_backend:categories*',
-        
+
         // Coupon patterns
         'coupon_backend:coupons*'
       ];
@@ -521,7 +520,7 @@ class CacheService {
 
       let totalDeleted = 0;
       const results = [];
-      
+
       for (const pattern of patterns) {
         try {
           const deleted = await this.delPattern(pattern);
@@ -610,7 +609,7 @@ class CacheService {
       return result;
     } catch (error) {
       console.error(`❌ Cache invalidation failed for store ${storeId}:`, error.message);
-      
+
       // ✅ CRITICAL: Don't throw - continue without cache invalidation
       // This prevents cache failures from breaking the entire operation
       const fallbackResult = {
@@ -620,7 +619,7 @@ class CacheService {
         timestamp: new Date(),
         storeId: storeId
       };
-      
+
       console.warn(`⚠️ Continuing operation without cache invalidation:`, fallbackResult);
       return fallbackResult;
     }

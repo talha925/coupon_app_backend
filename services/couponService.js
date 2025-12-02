@@ -7,101 +7,39 @@ const { getWebSocketServer } = require('../lib/websocket-server');
 const cacheService = require('./cacheService');
 const axios = require('axios');
 
-// Circuit breaker for external dependencies
-const circuitBreaker = {
-    websocket: {
-        failures: 0,
-        lastFailure: 0,
-        isOpen: false,
-        threshold: 5,
-        timeout: 30000 // 30 seconds
-    },
-    cache: {
-        failures: 0,
-        lastFailure: 0,
-        isOpen: false,
-        threshold: 3,
-        timeout: 15000 // 15 seconds
-    },
-    frontend: {
-        failures: 0,
-        lastFailure: 0,
-        isOpen: false,
-        threshold: 3,
-        timeout: 10000
-    }
-};
+const { callWithCircuitBreaker } = require('../lib/circuitBreaker');
 
-/**
- * Execute operation with circuit breaker protection
- */
-const callWithCircuitBreaker = async (service, operation, fallback = null) => {
-    const breaker = circuitBreaker[service];
-    
-    // Check if circuit breaker is open
-    if (breaker.isOpen) {
-        if (Date.now() - breaker.lastFailure < breaker.timeout) {
-            console.warn(`⚠️ Circuit breaker OPEN for ${service}, using fallback`);
-            return fallback ? await fallback() : { success: false, circuitBreakerOpen: true };
-        } else {
-            // Reset circuit breaker after timeout
-            breaker.isOpen = false;
-            breaker.failures = 0;
-            console.log(`🔄 Circuit breaker RESET for ${service}`);
-        }
-    }
-    
-    try {
-        const result = await operation();
-        // Reset failure count on success
-        breaker.failures = 0;
-        return result;
-    } catch (error) {
-        breaker.failures++;
-        breaker.lastFailure = Date.now();
-        
-        if (breaker.failures >= breaker.threshold) {
-            breaker.isOpen = true;
-            console.error(`🚨 Circuit breaker OPENED for ${service} after ${breaker.failures} failures`);
-        }
-        
-        console.error(`❌ ${service} operation failed:`, error.message);
-        
-        if (fallback) {
-            return await fallback();
-        }
-        throw error;
-    }
-};
+// Circuit breaker for external dependencies
+// Logic moved to lib/circuitBreaker.js to prevent duplication
 
 /**
  * Call frontend revalidation endpoint to refresh Next.js cache
  */
 const callFrontendRevalidation = async (type, identifier, metadata = {}) => {
-    try {
-        const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-        const revalidationEndpoint = `${frontendUrl}/api/revalidate`;
-        const payload = {
-            type,
-            identifier,
-            timestamp: new Date().toISOString(),
-            ...metadata
-        };
-        const response = await axios.post(revalidationEndpoint, payload, {
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${process.env.REVALIDATION_SECRET || 'default-secret'}`
-            },
-            timeout: 5000
-        });
-        if (response.status >= 200 && response.status < 300) {
-            return { success: true, result: response.data };
-        } else {
-            return { success: false, error: `HTTP ${response.status}` };
-        }
-    } catch (error) {
-        return { success: false, error: error.message };
+  try {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const revalidationEndpoint = `${frontendUrl}/api/revalidate`;
+    const payload = {
+      type,
+      identifier,
+      timestamp: new Date().toISOString(),
+      ...metadata
+    };
+    const response = await axios.post(revalidationEndpoint, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${process.env.REVALIDATION_SECRET || 'default-secret'}`
+      },
+      timeout: 5000
+    });
+    if (response.status >= 200 && response.status < 300) {
+      return { success: true, result: response.data };
+    } else {
+      return { success: false, error: `HTTP ${response.status}` };
     }
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
 };
 
 const callFrontendRevalidationWithCircuitBreaker = async (type, identifier, metadata = {}) => {
@@ -112,14 +50,7 @@ const callFrontendRevalidationWithCircuitBreaker = async (type, identifier, meta
   );
 };
 
-setInterval(() => {
-  Object.keys(circuitBreaker).forEach(service => {
-    const b = circuitBreaker[service];
-    if (!b.isOpen && b.failures > 0) {
-      b.failures = 0;
-    }
-  });
-}, 300000);
+
 
 // Get all coupons for a specific store with pagination (20 coupons per page)
 exports.getCouponsByStore = async (queryParams, storeId) => {
@@ -156,7 +87,7 @@ exports.getCouponsByStore = async (queryParams, storeId) => {
 
     console.log('Coupons after sorting by order:', coupons); // Log the sorted coupons
 
-      
+
     // Get the total count of coupons for pagination
     const totalCoupons = await Coupon.countDocuments(query);
 
@@ -253,7 +184,7 @@ exports.createCoupon = async (couponData) => {
     const storeExists = await Store.findById(couponData.store);
     if (!storeExists) {
       throw new AppError('Invalid Store ID', 400);
-    }    const newCoupon = await Coupon.create(couponData);
+    } const newCoupon = await Coupon.create(couponData);
 
     // Add coupon to store
     await Store.findByIdAndUpdate(couponData.store, {
@@ -624,11 +555,13 @@ exports.updateCouponOrder = async (storeId, orderedCouponIds) => {
 
     await callFrontendRevalidationWithCircuitBreaker('store', storeId, { storeId, event: 'coupon_order_updated' });
 
-    try {
-      await exports.getCouponsByStore({ page: 1, isValid: 'true' }, storeId);
-    } catch (warmErr) {
-      console.error('Cache warm failed:', warmErr.message);
-    }
+    // Cache warming removed to improve performance (8s -> <1s)
+    // The cache will be naturally warmed by the next user request
+    // try {
+    //   await exports.getCouponsByStore({ page: 1, isValid: 'true' }, storeId);
+    // } catch (warmErr) {
+    //   console.error('Cache warm failed:', warmErr.message);
+    // }
 
     return { message: 'Coupon order updated successfully', totalUpdated: bulkOps.length, cache: cacheResult, websocket: wsResult };
   } catch (error) {

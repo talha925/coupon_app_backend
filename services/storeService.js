@@ -4,131 +4,13 @@ const AppError = require('../errors/AppError');
 const cacheService = require('./cacheService');
 const { getWebSocketServer } = require('../lib/websocket-server');
 const axios = require('axios');
-
-// Removed legacy in-memory locks - now using atomic updates with Redis
-
-// ✅ CIRCUIT BREAKER PATTERN: For external dependencies (WebSocket & Cache services)
-const circuitBreaker = {
-    websocket: {
-        failures: 0,
-        lastFailure: 0,
-        isOpen: false,
-        threshold: 5,
-        timeout: 30000,
-        successCount: 0,
-        failureCount: 0,
-        successRate: 100
-    },
-    cache: {
-        failures: 0,
-        lastFailure: 0,
-        isOpen: false,
-        threshold: 3,
-        timeout: 15000,
-        successCount: 0,
-        failureCount: 0,
-        successRate: 100
-    },
-    frontend: {
-        failures: 0,
-        lastFailure: 0,
-        isOpen: false,
-        threshold: 3,
-        timeout: 10000,
-        successCount: 0,
-        failureCount: 0,
-        successRate: 100
-    }
-};
-
-/**
- * ✅ PRODUCTION-READY: Execute operation with circuit breaker protection
- * @param {String} service - Service name ('websocket' or 'cache')
- * @param {Function} operation - Operation to execute
- * @param {Function} fallback - Fallback function if circuit is open or operation fails
- * @returns {*} Operation result or fallback result
- */
-const updateCircuitBreakerMetrics = (service, success) => {
-    const breaker = circuitBreaker[service];
-    if (!breaker) return;
-    if (success) {
-        breaker.successCount = (breaker.successCount || 0) + 1;
-    } else {
-        breaker.failureCount = (breaker.failureCount || 0) + 1;
-    }
-    const total = (breaker.successCount || 0) + (breaker.failureCount || 0);
-    breaker.successRate = total > 0 ? (breaker.successCount / total) * 100 : 100;
-};
-
-const callWithCircuitBreaker = async (service, operation, fallback = null) => {
-    const breaker = circuitBreaker[service];
-    if (!breaker) {
-        return fallback ? await fallback() : null;
-    }
-    if (breaker.isOpen) {
-        const timeSinceLastFailure = Date.now() - breaker.lastFailure;
-        if (timeSinceLastFailure > breaker.timeout) {
-            breaker.isOpen = false;
-            breaker.failures = 0;
-        } else {
-            updateCircuitBreakerMetrics(service, false);
-            return fallback ? await fallback() : null;
-        }
-    }
-    try {
-        const result = await operation();
-        breaker.failures = 0;
-        updateCircuitBreakerMetrics(service, true);
-        return result;
-    } catch (error) {
-        breaker.failures++;
-        breaker.lastFailure = Date.now();
-        updateCircuitBreakerMetrics(service, false);
-        if (breaker.failures >= breaker.threshold) {
-            breaker.isOpen = true;
-        }
-        if (fallback) {
-            return await fallback();
-        }
-        throw error;
-    }
-};
-
-/**
- * Get circuit breaker status for monitoring
- * @returns {Object} Circuit breaker status for all services
- */
-const getCircuitBreakerStatus = () => {
-    return {
-        websocket: {
-            isOpen: circuitBreaker.websocket.isOpen,
-            failures: circuitBreaker.websocket.failures,
-            lastFailure: circuitBreaker.websocket.lastFailure,
-            timeSinceLastFailure: circuitBreaker.websocket.lastFailure ? Date.now() - circuitBreaker.websocket.lastFailure : null,
-            successCount: circuitBreaker.websocket.successCount,
-            failureCount: circuitBreaker.websocket.failureCount,
-            successRate: circuitBreaker.websocket.successRate
-        },
-        cache: {
-            isOpen: circuitBreaker.cache.isOpen,
-            failures: circuitBreaker.cache.failures,
-            lastFailure: circuitBreaker.cache.lastFailure,
-            timeSinceLastFailure: circuitBreaker.cache.lastFailure ? Date.now() - circuitBreaker.cache.lastFailure : null,
-            successCount: circuitBreaker.cache.successCount,
-            failureCount: circuitBreaker.cache.failureCount,
-            successRate: circuitBreaker.cache.successRate
-        }
-    };
-};
-
-// Removed legacy lock management functions - using atomic updates now
+const { callWithCircuitBreaker, getCircuitBreakerStatus } = require('../lib/circuitBreaker');
 
 /**
  * Get stores with filtering, pagination, and sorting
  * @param {Object} queryParams - Query parameters from request
  * @returns {Object} Stores with pagination info
  */
-
 exports.getStores = async (queryParams) => {
     try {
         const cacheKey = `coupon_backend:stores:${JSON.stringify(queryParams)}`;
@@ -235,18 +117,18 @@ exports.getStoresFallback = async (queryParams) => {
     if (isTopStore !== undefined) query.isTopStore = isTopStore === 'true';
     if (isEditorsChoice !== undefined) query.isEditorsChoice = isEditorsChoice === 'true';
 
-        const stores = await Store.find(query)
-            .sort({ createdAt: -1 })
-            .skip((parseInt(page) - 1) * parseInt(limit))
-            .limit(parseInt(limit))
-            .populate('categories')
-            .populate({
-                path: 'coupons',
-                select: '_id offerDetails code active isValid featuredForHome hits lastAccessed order',
-                match: { isValid: true, $or: [{ active: true }, { code: { $exists: true, $ne: '' } }] },
-                options: { sort: { order: 1, createdAt: -1 } }
-            })
-            .lean();
+    const stores = await Store.find(query)
+        .sort({ createdAt: -1 })
+        .skip((parseInt(page) - 1) * parseInt(limit))
+        .limit(parseInt(limit))
+        .populate('categories')
+        .populate({
+            path: 'coupons',
+            select: '_id offerDetails code active isValid featuredForHome hits lastAccessed order',
+            match: { isValid: true, $or: [{ active: true }, { code: { $exists: true, $ne: '' } }] },
+            options: { sort: { order: 1, createdAt: -1 } }
+        })
+        .lean();
 
     const totalStores = await Store.countDocuments(query);
 
@@ -267,7 +149,7 @@ exports.getStoreBySlug = async (slug) => {
     try {
         // Generate cache key for store by slug
         const cacheKey = `coupon_backend:store:slug:${slug}`;
-        
+
         // Try to get from cache first
         const cachedData = await cacheService.get(cacheKey);
         if (cachedData) {
@@ -313,7 +195,7 @@ exports.getStoreById = async (storeId) => {
 
         // Generate cache key for specific store
         const cacheKey = `coupon_backend:store:${storeId}`;
-        
+
         // Try to get from cache first
         const cachedData = await cacheService.get(cacheKey);
         if (cachedData) {
@@ -355,7 +237,7 @@ exports.searchStores = async (query, page = 1, limit = 10) => {
     try {
         // Generate cache key based on search parameters
         const cacheKey = `coupon_backend:stores:search:${query}:${page}:${limit}`;
-        
+
         // Try to get from cache first
         const cachedData = await cacheService.get(cacheKey);
         if (cachedData) {
@@ -456,12 +338,12 @@ exports.createStore = async (storeData) => {
         // ✅ DATABASE CONSISTENCY: Verify all requested data was saved
         console.log('🔍 Step 3: Verifying database consistency...');
         const consistencyIssues = [];
-        
+
         for (const [key, expectedValue] of Object.entries(storeData)) {
             if (['createdAt', 'updatedAt', '_id'].includes(key)) continue; // Skip auto-generated fields
-            
+
             const actualValue = newStore[key];
-            
+
             // Deep comparison for objects and arrays
             if (JSON.stringify(actualValue) !== JSON.stringify(expectedValue)) {
                 consistencyIssues.push({
@@ -479,14 +361,14 @@ exports.createStore = async (storeData) => {
         // ✅ GET FRESH DATA after creation for WebSocket notification
         console.log('🔄 Step 4: Fetching fresh data after creation...');
         const freshStoreData = await Store.findById(storeId).lean();
-        
+
         if (!freshStoreData) {
             throw new AppError('Store disappeared after creation', 500);
         }
 
         // ✅ COORDINATED CACHE INVALIDATION AND WEBSOCKET NOTIFICATION WITH CIRCUIT BREAKER
         console.log('📡 Step 5: Coordinated cache invalidation and WebSocket notification...');
-        
+
         // WebSocket notification with circuit breaker protection
         const wsNotificationResult = await callWithCircuitBreaker(
             'websocket',
@@ -504,7 +386,7 @@ exports.createStore = async (storeData) => {
             // Fallback: Manual cache invalidation if WebSocket fails
             async () => {
                 console.log('🔄 WebSocket circuit breaker fallback: Manual cache invalidation');
-                
+
                 const cacheResult = await callWithCircuitBreaker(
                     'cache',
                     async () => {
@@ -515,7 +397,7 @@ exports.createStore = async (storeData) => {
                         return { success: false, fallback: true, totalDeleted: 0 };
                     }
                 );
-                
+
                 return {
                     success: false,
                     websocketFailed: true,
@@ -538,9 +420,9 @@ exports.createStore = async (storeData) => {
 
         // ✅ AFTER SUCCESSFUL CREATION - Cache invalidation handled by atomic updates
         console.log('✅ Store creation completed successfully');
-        
+
         console.log(`✅ Enhanced store creation completed successfully for: ${storeId}`);
-        
+
         return {
             store: freshStoreData,
             creationSummary: {
@@ -582,18 +464,18 @@ exports.updateStore = async (id, updateData) => {
         // ✅ STEP 1: DATABASE UPDATE
         console.log('💾 Step 1: Performing database update...');
         const storeBeforeUpdate = await Store.findById(id).lean();
-        
+
         if (!storeBeforeUpdate) {
             throw new AppError('Store not found', 404);
         }
 
         const updatedStore = await Store.findByIdAndUpdate(
-            id, 
+            id,
             {
                 ...updateData,
                 updatedAt: new Date()
-            }, 
-            { 
+            },
+            {
                 new: true,
                 runValidators: true
             }
@@ -650,7 +532,7 @@ exports.updateStore = async (id, updateData) => {
         });
 
         console.log(`✅ ATOMIC store update completed successfully for: ${storeId}`);
-        
+
         return {
             store: updatedStore,
             atomicUpdateResults: {
@@ -691,7 +573,7 @@ exports.deleteStore = async (id) => {
         // ✅ DATABASE CONSISTENCY: Capture store state before deletion
         console.log('📊 Step 1: Capturing store state before deletion...');
         const storeBeforeDeletion = await Store.findById(id).lean();
-        
+
         if (!storeBeforeDeletion) {
             throw new AppError('Store not found', 404);
         }
@@ -713,7 +595,7 @@ exports.deleteStore = async (id) => {
         // ✅ DATABASE CONSISTENCY: Verify store was actually deleted
         console.log('🔍 Step 3: Verifying database consistency...');
         const storeAfterDeletion = await Store.findById(id).lean();
-        
+
         if (storeAfterDeletion) {
             console.error('💥 Database consistency error: Store still exists after deletion!');
             throw new AppError('Store deletion failed - store still exists', 500);
@@ -723,7 +605,7 @@ exports.deleteStore = async (id) => {
 
         // ✅ COORDINATED CACHE INVALIDATION AND WEBSOCKET NOTIFICATION WITH CIRCUIT BREAKER
         console.log('📡 Step 4: Coordinated cache invalidation and WebSocket notification...');
-        
+
         // WebSocket notification with circuit breaker protection
         const wsNotificationResult = await callWithCircuitBreaker(
             'websocket',
@@ -741,7 +623,7 @@ exports.deleteStore = async (id) => {
             // Fallback: Manual cache invalidation if WebSocket fails
             async () => {
                 console.log('🔄 WebSocket circuit breaker fallback: Manual cache invalidation');
-                
+
                 const cacheResult = await callWithCircuitBreaker(
                     'cache',
                     async () => {
@@ -752,7 +634,7 @@ exports.deleteStore = async (id) => {
                         return { success: false, fallback: true, totalDeleted: 0 };
                     }
                 );
-                
+
                 return {
                     success: false,
                     websocketFailed: true,
@@ -777,7 +659,7 @@ exports.deleteStore = async (id) => {
         console.log('✅ Store deletion completed successfully');
 
         console.log(`✅ Enhanced store deletion completed successfully for: ${storeId}`);
-        
+
         return {
             deletedStore: storeBeforeDeletion,
             deletionSummary: {

@@ -1,6 +1,6 @@
 const fs = require('fs').promises;
 const path = require('path');
-const { performanceMonitor } = require('../middleware/performanceMonitoring');
+const { performanceMonitor } = require('../middlewares/performanceMonitoring');
 
 class PerformanceReporter {
     constructor() {
@@ -11,10 +11,10 @@ class PerformanceReporter {
     async generateDailyReport() {
         const report = await this.createReport('daily');
         const filename = `daily-performance-${new Date().toISOString().split('T')[0]}.json`;
-        
+
         await this.saveReport(filename, report);
         console.log(`📊 Daily report generated: ${filename}`);
-        
+
         return report;
     }
 
@@ -23,17 +23,17 @@ class PerformanceReporter {
         const weekStart = new Date();
         weekStart.setDate(weekStart.getDate() - 7);
         const filename = `weekly-performance-${weekStart.toISOString().split('T')[0]}.json`;
-        
+
         await this.saveReport(filename, report);
         console.log(`📊 Weekly report generated: ${filename}`);
-        
+
         return report;
     }
 
     async createReport(period) {
         const stats = performanceMonitor.getMetrics();
         const baseline = this.config.reporting.performanceBaseline;
-        
+
         return {
             period,
             timestamp: new Date().toISOString(),
@@ -74,7 +74,7 @@ class PerformanceReporter {
 
     generateRecommendations(stats) {
         const recommendations = [];
-        
+
         if (stats.cacheHitRate < this.config.performance.cacheTargets.hitRate) {
             recommendations.push({
                 type: 'cache',
@@ -83,7 +83,7 @@ class PerformanceReporter {
                 action: 'Review cache TTL settings and warming strategy'
             });
         }
-        
+
         if (stats.averageResponseTime > 500) {
             recommendations.push({
                 type: 'performance',
@@ -92,7 +92,7 @@ class PerformanceReporter {
                 action: 'Review slow endpoints and optimize queries'
             });
         }
-        
+
         if (stats.averageDbQueryTime > 100) {
             recommendations.push({
                 type: 'database',
@@ -101,7 +101,7 @@ class PerformanceReporter {
                 action: 'Review database indexes and query optimization'
             });
         }
-        
+
         return recommendations;
     }
 
@@ -117,15 +117,15 @@ class PerformanceReporter {
         const tomorrow = new Date(now);
         tomorrow.setDate(tomorrow.getDate() + 1);
         tomorrow.setHours(0, 0, 0, 0);
-        
+
         const msUntilMidnight = tomorrow.getTime() - now.getTime();
-        
+
         setTimeout(() => {
             this.generateDailyReport();
             // Then every 24 hours
             setInterval(() => this.generateDailyReport(), 24 * 60 * 60 * 1000);
         }, msUntilMidnight);
-        
+
         console.log(`📅 Daily reports scheduled (next in ${Math.round(msUntilMidnight / 1000 / 60)} minutes)`);
     }
 
@@ -135,15 +135,15 @@ class PerformanceReporter {
         const nextSunday = new Date(now);
         nextSunday.setDate(now.getDate() + (7 - now.getDay()));
         nextSunday.setHours(0, 0, 0, 0);
-        
+
         const msUntilSunday = nextSunday.getTime() - now.getTime();
-        
+
         setTimeout(() => {
             this.generateWeeklyReport();
             // Then every week
             setInterval(() => this.generateWeeklyReport(), 7 * 24 * 60 * 60 * 1000);
         }, msUntilSunday);
-        
+
         console.log(`📅 Weekly reports scheduled (next in ${Math.round(msUntilSunday / 1000 / 60 / 60 / 24)} days)`);
     }
 }

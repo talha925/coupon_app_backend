@@ -8,7 +8,7 @@ const errorHandler = require('./middlewares/errorHandler');
 const security = require('./middlewares/security');
 const requestLogger = require('./middlewares/requestLogger');
 const performanceMiddleware = require('./middlewares/performanceMiddleware');
-const { performanceMiddleware: performanceMonitoring } = require('./middleware/performanceMonitoring');
+const { performanceMiddleware: performanceMonitoring } = require('./middlewares/performanceMonitoring');
 const { createFirstSuperAdmin } = require('./middlewares/authMiddleware');
 const redisConfig = require('./config/redis');
 const cacheService = require('./services/cacheService');
@@ -78,8 +78,8 @@ app.use(security.preventParamPollution(['category', 'language', 'isTopStore']));
 
 // Routes
 app.get('/', (req, res) => {
-    res.json({ 
-        message: 'Coupon Backend API', 
+    res.json({
+        message: 'Coupon Backend API',
         version: '1.0.0',
         status: 'running',
         timestamp: new Date().toISOString()
@@ -105,7 +105,7 @@ app.use(errorHandler);
 const PORT = config.port;
 const server = app.listen(PORT, '0.0.0.0', async () => {
     console.log(`🚀 Server running in ${config.nodeEnv} mode on port ${PORT}`);
-    
+
     // 🔌 Initialize WebSocket server if enabled
     if (process.env.WS_ENABLED === 'true') {
         try {
@@ -118,17 +118,17 @@ const server = app.listen(PORT, '0.0.0.0', async () => {
     } else {
         console.log('📡 WebSocket server disabled (WS_ENABLED=false)');
     }
-    
+
     // Start monitoring services in production
     if (config.nodeEnv === 'production') {
         const healthCheckService = require('./services/healthCheckService');
         const performanceReporter = require('./services/performanceReporter');
-        
+
         // Start health checks and reporting
         healthCheckService.start();
         performanceReporter.scheduleDailyReports();
         performanceReporter.scheduleWeeklyReports();
-        
+
         console.log('📊 Production monitoring services started');
     }
 });
@@ -138,12 +138,12 @@ process.on('uncaughtException', (err) => {
     console.error('💥 UNCAUGHT EXCEPTION! Shutting down...');
     console.error('Error:', err.name, err.message);
     console.error('Stack:', err.stack);
-    
+
     // Close server gracefully
     server.close(() => {
         process.exit(1);
     });
-    
+
     // Force close after 10 seconds
     setTimeout(() => {
         console.error('⚠️ Forced shutdown after timeout');
@@ -154,12 +154,12 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (err) => {
     console.error('💥 UNHANDLED REJECTION! Shutting down...');
     console.error('Error:', err);
-    
+
     // Close server gracefully
     server.close(() => {
         process.exit(1);
     });
-    
+
     // Force close after 10 seconds
     setTimeout(() => {
         console.error('⚠️ Forced shutdown after timeout');

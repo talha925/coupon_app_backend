@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { performanceMonitor } = require('../middleware/performanceMonitoring');
+const { performanceMonitor } = require('../middlewares/performanceMonitoring');
 const { SERVER, MONITORING } = require('../config/constants');
 
 class HealthCheckService {
@@ -11,18 +11,18 @@ class HealthCheckService {
 
     async start() {
         if (this.isRunning) return;
-        
+
         console.log('🏥 Starting health check service...');
         this.isRunning = true;
-        
+
         // Run initial health check
         await this.runHealthCheck();
-        
+
         // Schedule periodic health checks
         this.interval = setInterval(async () => {
             await this.runHealthCheck();
         }, this.config.healthChecks.interval);
-        
+
         console.log(`✅ Health checks scheduled every ${this.config.healthChecks.interval / 1000}s`);
     }
 
@@ -45,7 +45,7 @@ class HealthCheckService {
         for (const endpoint of this.config.healthChecks.endpoints) {
             const checkResult = await this.checkEndpoint(endpoint);
             results.checks.push(checkResult);
-            
+
             if (!checkResult.healthy) {
                 results.status = 'unhealthy';
             }
@@ -64,16 +64,16 @@ class HealthCheckService {
 
     async checkEndpoint(endpoint) {
         const startTime = Date.now();
-        
+
         try {
             const response = await axios.get(`${this.baseURL}${endpoint}`, {
                 timeout: 10000,
                 headers: { 'User-Agent': 'HealthCheck/1.0' }
             });
-            
+
             const responseTime = Date.now() - startTime;
             const healthy = response.status === 200 && responseTime < 5000;
-            
+
             return {
                 endpoint,
                 healthy,
@@ -81,7 +81,7 @@ class HealthCheckService {
                 statusCode: response.status,
                 error: null
             };
-            
+
         } catch (error) {
             return {
                 endpoint,

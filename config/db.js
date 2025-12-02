@@ -10,10 +10,8 @@ const mongoOptions = {
   family: 4,
   retryWrites: true,
   retryReads: true,
-  writeConcern: { w: 'majority' },
+  writeConcern: { w: 'majority' }
   // Add DNS resolution options
-  useNewUrlParser: true,
-  useUnifiedTopology: true
 };
 
 /**
